@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>운영구조 1분 샘플 — 나레이션 동기화 스토리</title>
+<style>
+  :root{--accent:#e8c268;--bg0:#05070d;--bg1:#0a0f1c;--letterbox:64px}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg0);color:#eaf2ff;
+    font-family:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sans KR',system-ui,sans-serif;
+    overflow-x:hidden}
+  #track{position:relative;width:100%}
+  #stage{position:fixed;inset:0;overflow:hidden;
+    background:radial-gradient(90% 70% at 50% -10%,#0e1730,transparent 65%),linear-gradient(var(--bg1),var(--bg0))}
+  #space{position:absolute;inset:0;width:100%;height:100%;display:block}
+  #stage::after{content:"";position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(120% 100% at 50% 50%,transparent 55%,rgba(0,0,0,.55) 100%)}
+  .bar{position:fixed;left:0;right:0;height:var(--letterbox);background:#000;z-index:30;
+    transition:transform .8s cubic-bezier(.2,.7,.2,1)}
+  .bar.top{top:0;transform:translateY(-100%)}
+  .bar.bottom{bottom:0;transform:translateY(100%)}
+  body.cinema .bar.top{transform:none}
+  body.cinema .bar.bottom{transform:none}
+  #progress{position:fixed;top:0;left:0;height:3px;width:0;z-index:40;
+    background:linear-gradient(90deg,var(--accent),#fff);box-shadow:0 0 12px var(--accent)}
+  #kicker{position:fixed;top:calc(var(--letterbox) + 18px);left:50%;transform:translateX(-50%);
+    z-index:20;font-size:12px;letter-spacing:.4em;text-indent:.4em;color:#8fa3c8;font-weight:700;
+    transition:opacity .5s;white-space:nowrap}
+  body:not(.cinema) #kicker{top:60px}
+  #captionWrap{position:fixed;left:50%;bottom:calc(var(--letterbox) + 26px);transform:translateX(-50%);
+    z-index:35;width:min(900px,90vw);text-align:center;pointer-events:none}
+  #caption{display:inline-block;padding:12px 26px;border-radius:14px;
+    background:rgba(4,7,14,.62);backdrop-filter:blur(10px);
+    border:1px solid rgba(255,255,255,.08);
+    font-size:clamp(15px,2vw,21px);line-height:1.65;font-weight:500;color:#f4f8ff;
+    opacity:0;transform:translateY(14px);
+    transition:opacity .45s ease,transform .45s cubic-bezier(.2,.7,.2,1);
+    text-shadow:0 2px 14px rgba(0,0,0,.7)}
+  #caption.on{opacity:1;transform:none}
+  #caption em{font-style:normal;color:var(--accent);font-weight:700}
+  #hud{position:fixed;top:calc(var(--letterbox)/2);right:22px;z-index:50;
+    display:flex;gap:10px;align-items:center;transform:translateY(-50%)}
+  body:not(.cinema) #hud{top:18px;transform:none}
+  .hbtn{pointer-events:auto;cursor:pointer;border:1px solid rgba(255,255,255,.18);
+    background:rgba(10,15,28,.55);backdrop-filter:blur(8px);color:#eaf2ff;
+    border-radius:999px;padding:8px 16px;font-size:13px;font-weight:600;
+    display:flex;align-items:center;gap:7px;
+    transition:transform .5s cubic-bezier(.34,1.56,.64,1),background .3s,border-color .3s}
+  .hbtn:hover{transform:translateY(-2px);border-color:var(--accent);background:rgba(16,24,44,.8)}
+  .hbtn:active{transform:scale(.94)}
+  #sceneNo{position:fixed;left:22px;top:calc(var(--letterbox)/2);transform:translateY(-50%);z-index:50;
+    font-size:12px;letter-spacing:.28em;color:#8fa3c8;font-variant-numeric:tabular-nums}
+  body:not(.cinema) #sceneNo{top:18px;transform:none}
+  #gate{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:30px;text-align:center;
+    background:radial-gradient(80% 60% at 50% 40%,#0d1526,var(--bg0));
+    transition:opacity .8s ease,visibility .8s}
+  #gate.off{opacity:0;visibility:hidden}
+  #gate .gk{font-size:12px;letter-spacing:.5em;text-indent:.5em;color:var(--accent);font-weight:700}
+  #gate h2{font-size:clamp(26px,4.6vw,54px);font-weight:800;line-height:1.3;letter-spacing:-.02em;white-space:pre-line}
+  #gate p{color:#9fb2d6;font-size:clamp(13px,1.6vw,16px);line-height:1.8}
+  #playBtn{cursor:pointer;border:none;border-radius:999px;padding:18px 46px;
+    font-size:17px;font-weight:800;color:#1f1607;letter-spacing:.02em;
+    background:linear-gradient(120deg,var(--accent),#f4e3b0);
+    box-shadow:0 12px 40px -8px color-mix(in srgb,var(--accent) 60%,transparent);
+    display:flex;align-items:center;gap:12px;
+    transition:transform .5s cubic-bezier(.34,1.56,.64,1)}
+  #playBtn:hover{transform:translateY(-3px) scale(1.03)}
+  #playBtn:active{transform:scale(.95)}
+  #playBtn .tri{width:0;height:0;border-left:14px solid #1f1607;border-top:9px solid transparent;border-bottom:9px solid transparent}
+  #ending{position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:26px;text-align:center;
+    background:rgba(3,5,10,.78);backdrop-filter:blur(6px);
+    opacity:0;visibility:hidden;transition:opacity .9s ease,visibility .9s}
+  #ending.on{opacity:1;visibility:visible}
+  #ending h2{font-size:clamp(22px,3.6vw,42px);font-weight:800;white-space:pre-line;line-height:1.5}
+  #ending .hbtn{font-size:15px;padding:13px 30px}
+  #hint{position:fixed;left:50%;bottom:calc(var(--letterbox) - 44px);transform:translateX(-50%);
+    z-index:36;font-size:11px;letter-spacing:.3em;color:#5f7398;opacity:0;transition:opacity .6s}
+  body.cinema #hint{bottom:8px}
+  #hint.on{opacity:1}
+  @media (max-width:640px){:root{--letterbox:40px}}
+  @media (prefers-reduced-motion:reduce){.bar,#caption,.hbtn,#playBtn{transition:none}}
+</style>
+</head>
+<body>
+
+<div id="track"></div>
+<div id="stage"><canvas id="space"></canvas></div>
+<div class="bar top"></div>
+<div class="bar bottom"></div>
+<div id="progress"></div>
+<div id="kicker"></div>
+<div id="captionWrap"><span id="caption"></span></div>
+<div id="sceneNo">SCENE 01 / 04</div>
+<div id="hud">
+  <button class="hbtn" id="btnPlay">▶ 재생</button>
+  <button class="hbtn" id="btnMute">🔊 나레이션</button>
+  <button class="hbtn" id="btnRestart">↺ 처음부터</button>
+</div>
+<div id="hint">SCROLL TO SCRUB</div>
+
+<div id="gate">
+  <div class="gk">1-MINUTE SAMPLE · ssjvoice</div>
+  <h2>운영구조 스토리
+1분 샘플</h2>
+  <p>나레이션이 말하는 것이 화면에서 그대로 일어납니다.<br>전문인재들이 등장하고, 증명하고, 관문을 지나, 팀과 기관으로 갈라집니다.</p>
+  <button id="playBtn"><span class="tri"></span> 재생</button>
+</div>
+
+<div id="ending">
+  <h2>— 샘플 끝 —
+전체 버전은 이 문법으로 제작됩니다</h2>
+  <button class="hbtn" id="btnReplay">↺ 다시 보기</button>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   1분 샘플 — 나레이션(글) ↔ 화면 사건 1:1 매핑
+   S0 등장   : 두 기수 블록 정렬 + 컨설턴트 5인 전면
+   S1 개인PJ : 넓게 흩어져 각자 머리 위로 결과물 빛 떠오름
+   S2 평가   : 관문 통과 → 5개 기관 건물 점등, 5인 이동
+   S3 병행   : 4인 팀 원형 클러스터 + 컨설턴트-기관 연결빔
+   ============================================================ */
+const SCRIPT=[
+  {kicker:"PROLOGUE — 등장",
+   lines:["여기, 두 개 기수의 전문인재들이 서 있습니다.",
+          "그리고 이들의 여정을 함께할 <em>다섯 명의 CDSA 컨설턴트</em>."]},
+  {kicker:"TRACK 1 — 개인프로젝트",
+   lines:["첫 4주는 <em>개인프로젝트</em>. 각자의 자리에서 스스로를 증명하는 시간입니다.",
+          "한 사람 한 사람의 결과물이 저마다의 빛으로 떠오릅니다."]},
+  {kicker:"GATE — 평가·선발",
+   lines:["그리고 평가의 관문. NIA, 행정안전부, CDSA가 <em>같은 기준</em>으로 심사합니다.",
+          "이 관문을 지나, <em>다섯 개 기관</em>에 불이 켜집니다."]},
+  {kicker:"TRACK 2·3 — 팀프로젝트 ∥ 기관컨설팅",
+   lines:["남은 여정은 두 갈래. <em>네 명씩 팀</em>을 이뤄 해커톤을 달리고,",
+          "선정된 기관에는 컨설턴트가 연결되어, <em>컨설팅</em>이 나란히 갑니다."]}
+];
+const AUDIO_PREFIX="audio/sp-";
+const REDUCE=matchMedia("(prefers-reduced-motion:reduce)").matches;
+const S=SCRIPT.length, SEG_VH=180, doc=document.documentElement;
+document.getElementById("track").style.height=(S*SEG_VH)+"vh";
+
+const caption=document.getElementById("caption");
+const progress=document.getElementById("progress");
+const sceneNo=document.getElementById("sceneNo");
+const kickerEl=document.getElementById("kicker");
+const gate=document.getElementById("gate");
+const ending=document.getElementById("ending");
+const hint=document.getElementById("hint");
+const btnPlay=document.getElementById("btnPlay");
+const btnMute=document.getElementById("btnMute");
+
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const smooth=t=>t*t*(3-2*t);
+
+/* ── 캔버스 ── */
+const cv=document.getElementById("space"),ctx=cv.getContext("2d");
+let W=0,H=0;
+function fit(){const d=Math.min(2,devicePixelRatio||1);W=innerWidth;H=innerHeight;
+  cv.width=W*d;cv.height=H*d;ctx.setTransform(d,0,0,d,0,0);}
+fit();addEventListener("resize",fit,{passive:true});
+
+/* ── 등장인물 ─────────────────────────────────────────
+   trainee 38명(1기 19 + 2기 19) + 컨설턴트 5명.
+   좌표계: 바닥 y=0, 위는 -y. 단위: 월드px            */
+const TR=38, CO=5, ALL=TR+CO;
+const SELECTED=[3,9,17,24,31];               // 기관 PM으로 이동하는 5인
+const isSel=i=>SELECTED.includes(i);
+const BX=[-640,-320,0,320,640], BZ=3000;     // 기관 건물 5동
+const GATE_Z=1600;
+
+/* 대형(Formation) — 장면별 [x,z] */
+function F0(i){ // 두 기수 블록 + 컨설턴트 전면
+  if(i>=TR){const c=i-TR;return[(c-2)*170,-190];}
+  const g=i<19?0:1, a=i%19, col=a%5, row=(a/5)|0;
+  return[(g?300:-300)+(col-2)*88, 140+row*105];
+}
+function F1(i){ // 개인 작업 그리드(넓게)
+  if(i>=TR){const c=i-TR;return[c<3?-740:740, 520+(c%3)*260];}
+  const col=i%8,row=(i/8)|0;
+  return[(col-3.5)*175, 430+row*165];
+}
+function F2(i){ // 관문 앞 대열(쐐기)
+  if(i>=TR){const c=i-TR;return[(c-2)*150, 900];}
+  const col=i%6,row=(i/6)|0, w=560-row*40;
+  return[(col/5-.5)*w, 1060+row*88];
+}
+function F3(i){ // 팀 원형 + 선정 5인은 기관 앞 + 컨설턴트는 기관 옆
+  if(i>=TR){const c=i-TR;return[BX[c]+85,2820];}
+  if(isSel(i)){const j=SELECTED.indexOf(i);return[BX[j],2840];}
+  let k=0,m=0,cnt=0;
+  for(let q=0;q<TR;q++){if(isSel(q))continue;if(q===i){k=(cnt/4)|0;m=cnt%4;break;}cnt++;}
+  const tx=(k%5-2)*330, tz=2300+((k/5)|0)*260, a=m*Math.PI/2+k*.7;
+  return[tx+Math.cos(a)*62, tz+Math.sin(a)*62];
+}
+const FORMS=[F0,F1,F2,F3];
+const stag=Array.from({length:ALL},(_,i)=>((i*2654435761)%997)/997);
+
+/* 인물의 현재 위치: 장면 s→s+1 후반 30%에서 개별 지연 이동 */
+function personPos(i,t){
+  const s=clamp(Math.floor(t),0,S-1), u=clamp(t-s,0,1);
+  const A=FORMS[s](i), B=FORMS[Math.min(s+1,S-1)](i);
+  let m=smooth(clamp(((u-.68)/.32)*1.45-stag[i]*.45,0,1));
+  /* 선정 5인은 S2 중반(불 켜질 때) 먼저 출발 */
+  if(s===2&&isSel(i))m=Math.max(m,smooth(clamp((u-.52)/.4,0,1)));
+  const x=lerp(A[0],B[0],m), z=lerp(A[1],B[1],m);
+  const moving=m>0&&m<1;
+  return{x,z,moving,m};
+}
+
+/* ── 카메라: 장면 키프레임 스플라인 ── */
+const EYES=[[0,-250,-930],[-630,-390,-140],[150,-210,760],[-320,-430,1680],[0,-920,1490]];
+const LOOKS=[[0,-120,80],[60,-90,660],[0,-210,1630],[0,-150,2620],[0,-40,2600]];
+function catN(pts,t){
+  const n=pts.length,i=clamp(Math.floor(t),0,n-2),u=t-i;
+  const p0=pts[Math.max(0,i-1)],p1=pts[i],p2=pts[i+1],p3=pts[Math.min(n-1,i+2)];
+  const u2=u*u,u3=u2*u,out=[0,0,0];
+  for(let k=0;k<3;k++){
+    const m1=(p2[k]-p0[k])*.5,m2=(p3[k]-p1[k])*.5;
+    out[k]=p1[k]*(2*u3-3*u2+1)+m1*(u3-2*u2+u)+p2[k]*(-2*u3+3*u2)+m2*(u3-u2);
+  }
+  return out;
+}
+let camEye=EYES[0],camBasis=null;
+function computeCam(t){
+  camEye=catN(EYES,t);
+  const look=catN(LOOKS,t);
+  let f=[look[0]-camEye[0],look[1]-camEye[1],look[2]-camEye[2]];
+  const fl=Math.hypot(...f)||1;f=[f[0]/fl,f[1]/fl,f[2]/fl];
+  let r=[f[2],0,-f[0]];const rl=Math.hypot(...r)||1;r=[r[0]/rl,r[1]/rl,r[2]/rl];
+  const u=[r[1]*f[2]-r[2]*f[1],r[2]*f[0]-r[0]*f[2],r[0]*f[1]-r[1]*f[0]];
+  camBasis={f,r,u,F:H*1.12,cx:W/2,cy:H/2};
+}
+function proj(x,y,z){
+  const b=camBasis,dx=x-camEye[0],dy=y-camEye[1],dz=z-camEye[2];
+  const Z=dx*b.f[0]+dy*b.f[1]+dz*b.f[2];
+  if(Z<60)return null;
+  const X=dx*b.r[0]+dy*b.r[1]+dz*b.r[2];
+  const Y=dx*b.u[0]+dy*b.u[1]+dz*b.u[2];
+  const sc=b.F/Z;
+  return[b.cx+X*sc,b.cy-Y*sc,sc,Z];
+}
+const depthA=Z=>clamp(1-Z/5600,.08,1);
+
+/* ── 스크럽 ── */
+let target=0,cur=0;
+function readScroll(){const m=doc.scrollHeight-innerHeight;target=m>0?scrollY/m:0;}
+addEventListener("scroll",()=>{readScroll();if(!auto.playing)userTouched();},{passive:true});
+
+let time=0;
+function frame(){
+  time+=1/60;
+  cur+=(target-cur)*(REDUCE?1:.08);
+  const p=clamp(cur,0,1),t=p*S;
+  const s=clamp(Math.floor(t),0,S-1),local=clamp(t-s,0,1);
+  draw(p,t,s,local);
+  layout(t,s,local);
+  requestAnimationFrame(frame);
+}
+
+/* ── 그리기 도우미 ── */
+function label(text,x,y,z,px,alpha,color="#dbe6ff",weight=700){
+  const a=proj(x,y,z);if(!a||alpha<=0.01)return;
+  const size=Math.max(7,px*a[2]);
+  ctx.font=`${weight} ${size}px Pretendard,'Apple SD Gothic Neo','Noto Sans KR',sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.globalAlpha=alpha*depthA(a[3]);
+  ctx.fillStyle=color;ctx.fillText(text,a[0],a[1]);
+  ctx.globalAlpha=1;
+}
+function person(x,z,hgt,color,alpha,moving,i){
+  const bob=moving?Math.abs(Math.sin(time*9+i*2))*8:0;
+  const ft=proj(x,0,z), hd=proj(x,-hgt-bob,z);
+  if(!ft||!hd)return;
+  const ph=ft[1]-hd[1]; if(ph<3)return;
+  const w=ph*.34, hr=ph*.155;
+  const al=alpha*depthA(ft[3]);
+  /* 그림자 → 접지감 */
+  ctx.fillStyle=`rgba(0,0,0,${(al*.4).toFixed(3)})`;
+  ctx.beginPath();ctx.ellipse(ft[0],ft[1],w*.9,w*.3,0,0,6.2832);ctx.fill();
+  /* 몸통(캡슐) */
+  ctx.fillStyle=color;ctx.globalAlpha=al;
+  const bodyTop=hd[1]+hr*1.7;
+  ctx.beginPath();
+  ctx.moveTo(ft[0]-w/2,ft[1]);
+  ctx.lineTo(ft[0]-w/2,bodyTop+w/2);
+  ctx.arc(ft[0],bodyTop+w/2,w/2,Math.PI,0);
+  ctx.lineTo(ft[0]+w/2,ft[1]);
+  ctx.closePath();ctx.fill();
+  /* 머리 */
+  ctx.beginPath();ctx.arc(hd[0],hd[1]+hr,hr,0,6.2832);ctx.fill();
+  ctx.globalAlpha=1;
+}
+function box(cx,cz,w,d,h,edgeColor,alpha,lit,litColor){
+  /* 건물: 8꼭짓점 와이어 + 창문 도트 */
+  const cs=[[-w/2,-d/2],[w/2,-d/2],[w/2,d/2],[-w/2,d/2]];
+  const top=[],bot=[];
+  for(const[ox,oz]of cs){bot.push(proj(cx+ox,0,cz+oz));top.push(proj(cx+ox,-h,cz+oz));}
+  if(bot.some(v=>!v)||top.some(v=>!v))return;
+  const al=alpha*depthA(bot[0][3]);
+  ctx.strokeStyle=edgeColor;ctx.globalAlpha=al;ctx.lineWidth=1.2;
+  ctx.beginPath();
+  for(let k=0;k<4;k++){
+    const k2=(k+1)%4;
+    ctx.moveTo(bot[k][0],bot[k][1]);ctx.lineTo(bot[k2][0],bot[k2][1]);
+    ctx.moveTo(top[k][0],top[k][1]);ctx.lineTo(top[k2][0],top[k2][1]);
+    ctx.moveTo(bot[k][0],bot[k][1]);ctx.lineTo(top[k][0],top[k][1]);
+  }
+  ctx.stroke();
+  /* 창문: 앞면 */
+  const rows=Math.floor(h/72),cols=3;
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    const wx=cx+(c-1)*w*.28, wy=-40-r*66, wz=cz-d/2;
+    const a=proj(wx,wy,wz);if(!a)continue;
+    const on=lit>0&&((r*3+c+((cx*7)|0))%9)<7;
+    ctx.fillStyle=on?litColor:"rgba(150,170,200,.35)";
+    ctx.globalAlpha=al*(on?(.5+.5*lit):.5);
+    const sz=Math.max(1,4.4*a[2]);
+    ctx.fillRect(a[0]-sz/2,a[1]-sz/2,sz,sz*1.4);
+  }
+  /* 점등 시 바닥 광 */
+  if(lit>0){
+    const g=proj(cx,0,cz-d/2-30);
+    if(g){ctx.fillStyle=litColor;ctx.globalAlpha=al*lit*.22;
+      ctx.beginPath();ctx.ellipse(g[0],g[1],110*g[2],30*g[2],0,0,6.2832);ctx.fill();}
+  }
+  ctx.globalAlpha=1;
+}
+
+/* ── 메인 드로우 ── */
+function draw(p,t,s,local){
+  ctx.clearRect(0,0,W,H);
+  computeCam(t);
+
+  /* 바닥 도트 그리드 — 무대의 접지감 */
+  for(let gx=-900;gx<=900;gx+=150)for(let gz=-500;gz<=3400;gz+=150){
+    const a=proj(gx,0,gz);if(!a)continue;
+    const al=depthA(a[3])*.25;
+    const sz=Math.max(.5,1.6*a[2]);
+    ctx.fillStyle=`rgba(140,165,205,${al.toFixed(3)})`;
+    ctx.fillRect(a[0]-sz/2,a[1]-sz/2,sz,sz);
+  }
+  /* 중앙 여정선: 시작 → 관문까지 */
+  for(let gz=-300;gz<=1500;gz+=95){
+    const a=proj(0,0,gz);if(!a||a[3]<260)continue;
+    const passed=gz< -300+(p*3300);
+    ctx.fillStyle=passed?`rgba(232,194,104,${(depthA(a[3])*.7).toFixed(3)})`:`rgba(150,170,210,${(depthA(a[3])*.3).toFixed(3)})`;
+    const sz=Math.min(3.2,Math.max(.6,2.4*a[2]));
+    ctx.beginPath();ctx.arc(a[0],a[1],sz,0,6.2832);ctx.fill();
+  }
+
+  /* 평가 관문 (S2 중심) — 등장 전에는 숨김 */
+  const gv=smooth(clamp((t-1.55)/.3,0,1))*(1-smooth(clamp((t-2.45)/.25,0,1))); /* 통과 후 소멸 */
+  const gateGlow=smooth(clamp((t-1.85)/.4,0,1))*(1-smooth(clamp((t-2.9)/.4,0,1)));
+  if(gv>0){
+  for(const px of[-210,210]){
+    for(let y=0;y>=-340;y-=44){
+      const a=proj(px,y,GATE_Z);if(!a)continue;
+      const sz=Math.max(1,7*a[2]);
+      ctx.fillStyle=`rgba(220,235,255,${(gv*depthA(a[3])*(.4+.5*gateGlow)).toFixed(3)})`;
+      ctx.fillRect(a[0]-sz/2,a[1]-sz/2,sz,sz);
+    }
+  }
+  for(let x=-210;x<=210;x+=42){
+    const a=proj(x,-340,GATE_Z);if(!a)continue;
+    const sz=Math.max(1,7*a[2]);
+    ctx.fillStyle=`rgba(220,235,255,${(gv*depthA(a[3])*(.4+.5*gateGlow)).toFixed(3)})`;
+    ctx.fillRect(a[0]-sz/2,a[1]-sz/2,sz,sz);
+  }
+  label("NIA · 행정안전부 · CDSA  공동 평가",0,-430,GATE_Z,17,gv*(.25+.75*gateGlow));
+  }
+  /* 관문 스캔광: 심사 중 */
+  if(gateGlow>0){
+    const sw=Math.sin(time*2.2)*190;
+    const a=proj(sw,-170,GATE_Z);
+    if(a){ctx.fillStyle=`rgba(232,194,104,${(gateGlow*.5).toFixed(3)})`;
+      ctx.fillRect(a[0]-2,a[1]-150*a[2],4,300*a[2]);}
+  }
+
+  /* 기관 건물 5동 — S2에서 페이드인, 후반 점등 */
+  const bv=smooth(clamp((t-2.05)/.3,0,1));
+  const lit=smooth(clamp((t-2.45)/.35,0,1));
+  const BH=[300,360,260,340,290];
+  if(bv>0){
+    for(let j=0;j<5;j++)
+      box(BX[j],BZ,190,150,BH[j],"rgba(160,180,215,.8)",bv,lit,"rgba(232,194,104,.95)");
+    label("선정 5개 기관 — 기관컨설팅",0,-480,BZ,19,bv*lit*.9,"#e8c268");
+  }
+
+  /* 컨설팅 연결빔 (S3) */
+  const beam=smooth(clamp((t-3.35)/.3,0,1));
+  if(beam>0){
+    ctx.setLineDash([10,14]);ctx.lineDashOffset=-time*90;
+    for(let j=0;j<5;j++){
+      const a=proj(BX[j]+85,-46,2820), b=proj(BX[j],-BH[j]*.55,BZ);
+      if(!a||!b)continue;
+      ctx.strokeStyle=`rgba(232,194,104,${(beam*.7*depthA(a[3])).toFixed(3)})`;
+      ctx.lineWidth=Math.max(1,2.2*a[2]);
+      ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
+
+  /* 인물 — 깊이 정렬 후 렌더 */
+  const order=[];
+  for(let i=0;i<ALL;i++){
+    const pp=personPos(i,t);
+    const a=proj(pp.x,0,pp.z);
+    if(!a)continue;
+    order.push({i,pp,Z:a[3]});
+  }
+  order.sort((a,b)=>b.Z-a.Z);
+  const selGlow=smooth(clamp((t-2.5)/.4,0,1));
+  for(const{i,pp}of order){
+    let color,hgt;
+    if(i>=TR){color="#e8c268";hgt=56;}
+    else if(isSel(i)&&selGlow>0){color=`rgb(${lerp(190,232,selGlow)|0},${lerp(205,194,selGlow)|0},${lerp(230,104,selGlow)|0})`;hgt=48;}
+    else{color=i<19?"#dbe4f0":"#9fb0c8";hgt=46;}
+    person(pp.x,pp.z,hgt,color,1,pp.moving,i);
+  }
+
+  /* 개인프로젝트 결과물 빛 (S1) */
+  const spark=smooth(clamp((t-1.4)/.35,0,1))*(1-smooth(clamp((t-2.05)/.3,0,1)));
+  if(spark>0){
+    ctx.globalCompositeOperation="lighter";
+    for(let i=0;i<TR;i++){
+      const pp=personPos(i,t);
+      const rise=20+spark*46+Math.sin(time*2+i*1.3)*7;
+      const a=proj(pp.x,-46-rise,pp.z);if(!a)continue;
+      const r=Math.max(1.2,(4+((i*37)%5))*a[2]);
+      const al=spark*depthA(a[3]);
+      ctx.fillStyle=`rgba(255,240,200,${(al*.9).toFixed(3)})`;
+      ctx.beginPath();ctx.arc(a[0],a[1],r,0,6.2832);ctx.fill();
+      ctx.fillStyle=`rgba(232,194,104,${(al*.25).toFixed(3)})`;
+      ctx.beginPath();ctx.arc(a[0],a[1],r*2.6,0,6.2832);ctx.fill();
+    }
+    ctx.globalCompositeOperation="source-over";
+  }
+
+  /* 장면 라벨(공간 부착) */
+  const l0=1-smooth(clamp((t-.85)/.25,0,1));
+  label("1기",-300,-190,620,26,l0*.9);
+  label("2기",300,-190,620,26,l0*.9);
+  const l1=smooth(clamp((t-1.1)/.25,0,1))*(1-smooth(clamp((t-1.9)/.25,0,1)));
+  label("개인프로젝트 — 4주",0,-260,900,24,l1*.9);
+  const l3=smooth(clamp((t-3.25)/.3,0,1));
+  label("팀프로젝트 — 4인 1조",0,-150,2470,22,l3*.9);
+}
+
+/* ── HUD/자막 ── */
+let lastScene=-1,lastLine=-1;
+function layout(t,s,local){
+  progress.style.width=(clamp(cur,0,1)*100).toFixed(2)+"%";
+  if(s!==lastScene){
+    lastScene=s;
+    sceneNo.textContent=`SCENE ${String(s+1).padStart(2,"0")} / ${String(S).padStart(2,"0")}`;
+    kickerEl.textContent=SCRIPT[s].kicker;
+  }
+  const L=SCRIPT[s].lines.length;
+  const li=clamp(Math.floor(local*L-1e-4),0,L-1);
+  if(s!==caption._s||li!==lastLine){
+    lastLine=li;caption._s=s;
+    caption.classList.remove("on");
+    clearTimeout(caption._t);
+    caption._t=setTimeout(()=>{caption.innerHTML=SCRIPT[s].lines[li];caption.classList.add("on");},180);
+  }
+  if(cur>0.997&&started&&!auto.playing)showEnding();
+}
+
+/* ── 나레이션(구운 ssjvoice mp3 → 브라우저 TTS 폴백) ── */
+const tts={
+  muted:false,bakedOk:true,sysVoice:null,_audio:null,_gen:0,
+  pickSys(){if(!("speechSynthesis"in window))return;
+    const vs=speechSynthesis.getVoices();
+    this.sysVoice=vs.find(v=>/ko[-_]KR/i.test(v.lang))||null;},
+  speak(text,s,li,onend,ondur){
+    if(this.muted)return null;
+    const plain=text.replace(/<[^>]+>/g,"");
+    const gen=++this._gen;
+    const sys=()=>{
+      if(gen!==this._gen)return;
+      if(!("speechSynthesis"in window)){onend();return;}
+      const u=new SpeechSynthesisUtterance(plain);
+      u.lang="ko-KR";if(this.sysVoice)u.voice=this.sysVoice;
+      u.onend=()=>{if(gen===this._gen)onend();};
+      u.onerror=()=>{if(gen===this._gen)onend();};
+      speechSynthesis.speak(u);
+    };
+    if(this.bakedOk){
+      const a=new Audio(`${AUDIO_PREFIX}s${s}-l${li}.mp3`);
+      a.addEventListener("loadedmetadata",()=>{if(gen===this._gen&&isFinite(a.duration)&&ondur)ondur(a.duration*1000);});
+      a.addEventListener("ended",()=>{if(gen===this._gen)onend();});
+      a.addEventListener("error",()=>{if(gen===this._gen){this.bakedOk=false;sys();}});
+      a.play().catch(()=>{if(gen===this._gen){this.bakedOk=false;sys();}});
+      this._audio=a;
+    }else sys();
+    return true;
+  },
+  stop(){this._gen++;
+    if(this._audio){this._audio.pause();this._audio=null;}
+    if("speechSynthesis"in window)speechSynthesis.cancel();}
+};
+tts.pickSys();
+if("speechSynthesis"in window)speechSynthesis.onvoiceschanged=()=>tts.pickSys();
+
+/* ── 자동재생 ── */
+const auto={
+  playing:false,s:0,li:0,t0:0,dur:0,raf:0,timer:0,
+  estimate(l){return Math.max(2400,l.replace(/<[^>]+>/g,"").length*155);},
+  start(from=0){
+    this.stop(false);this.playing=true;this.s=from;this.li=0;
+    document.body.classList.add("cinema");
+    btnPlay.textContent="⏸ 일시정지";hint.classList.remove("on");hideEnding();
+    this.playLine();
+  },
+  playLine(){
+    const line=SCRIPT[this.s].lines[this.li];
+    this.dur=this.estimate(line);this.t0=performance.now();
+    let spoken=false;
+    const done=()=>{
+      if(spoken)return;
+      const remain=this.t0+this.dur-performance.now();
+      if(remain>150){clearTimeout(this.timer);this.timer=setTimeout(done,remain);return;}
+      spoken=true;this.next();
+    };
+    const u=tts.speak(line,this.s,this.li,done,ms=>{
+      this.dur=Math.max(1200,ms);this.t0=performance.now();
+      clearTimeout(this.timer);this.timer=setTimeout(done,this.dur+3000);
+    });
+    clearTimeout(this.timer);
+    this.timer=setTimeout(done,this.dur+(u?6000:0));
+    this.tick();
+  },
+  tick(){
+    if(!this.playing)return;
+    const L=SCRIPT[this.s].lines.length;
+    const frac=clamp((performance.now()-this.t0)/this.dur,0,1);
+    const p=(this.s+(this.li+frac*.96)/L)/S;
+    const m=doc.scrollHeight-innerHeight;
+    scrollTo(0,p*m);
+    this.raf=requestAnimationFrame(()=>this.tick());
+  },
+  next(){
+    if(!this.playing)return;
+    cancelAnimationFrame(this.raf);
+    const L=SCRIPT[this.s].lines.length;
+    if(this.li<L-1){this.li++;this.playLine();return;}
+    if(this.s<S-1){this.s++;this.li=0;this.playLine();return;}
+    const m=doc.scrollHeight-innerHeight;scrollTo(0,m);
+    this.stop(false);showEnding();
+  },
+  pause(){this.playing=false;
+    cancelAnimationFrame(this.raf);clearTimeout(this.timer);tts.stop();
+    btnPlay.textContent="▶ 재생";document.body.classList.remove("cinema");
+    hint.classList.add("on");},
+  stop(ui=true){this.playing=false;
+    cancelAnimationFrame(this.raf);clearTimeout(this.timer);tts.stop();
+    if(ui){btnPlay.textContent="▶ 재생";document.body.classList.remove("cinema");}},
+  resumeHere(){
+    const p=clamp(target,0,.999),t=p*S,s=Math.floor(t);
+    const L=SCRIPT[s].lines.length;
+    const li=clamp(Math.floor((t-s)*L),0,L-1);
+    this.stop(false);this.playing=true;this.s=s;this.li=li;
+    document.body.classList.add("cinema");
+    btnPlay.textContent="⏸ 일시정지";hint.classList.remove("on");hideEnding();
+    this.playLine();
+  }
+};
+function userTouched(){hint.classList.remove("on");clearTimeout(hint._t);
+  hint._t=setTimeout(()=>{if(!auto.playing&&started&&cur<.98)hint.classList.add("on");},2500);}
+["wheel","touchmove"].forEach(ev=>addEventListener(ev,()=>{if(auto.playing)auto.pause();},{passive:true}));
+addEventListener("keydown",e=>{
+  if(e.code==="Space"){e.preventDefault();auto.playing?auto.pause():auto.resumeHere();}
+  else if(["ArrowDown","ArrowUp","PageDown","PageUp","Home","End"].includes(e.code)&&auto.playing)auto.pause();
+});
+
+let started=false;
+function begin(playNow){
+  started=true;gate.classList.add("off");
+  scrollTo(0,0);target=cur=0;
+  if(playNow)setTimeout(()=>auto.start(0),650);
+  else hint.classList.add("on");
+}
+document.getElementById("playBtn").addEventListener("click",()=>begin(true));
+gate.addEventListener("wheel",()=>{if(!started)begin(false);},{passive:true});
+gate.addEventListener("touchmove",()=>{if(!started)begin(false);},{passive:true});
+btnPlay.addEventListener("click",()=>auto.playing?auto.pause():auto.resumeHere());
+btnMute.addEventListener("click",()=>{
+  tts.muted=!tts.muted;
+  btnMute.textContent=tts.muted?"🔇 음소거":"🔊 나레이션";
+  if(tts.muted)tts.stop();
+  else if(auto.playing){const{s,li}=auto;auto.stop(false);auto.playing=true;auto.s=s;auto.li=li;auto.playLine();}
+});
+document.getElementById("btnRestart").addEventListener("click",()=>{hideEnding();auto.start(0);});
+document.getElementById("btnReplay").addEventListener("click",()=>{hideEnding();auto.start(0);});
+function showEnding(){ending.classList.add("on");document.body.classList.remove("cinema");}
+function hideEnding(){ending.classList.remove("on");}
+
+readScroll();
+frame();
+</script>
+</body>
+</html>
