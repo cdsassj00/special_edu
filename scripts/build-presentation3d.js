@@ -17,11 +17,11 @@ function replaceBetween(str, startAnchor, endAnchor, replacement, keepAnchors) {
 }
 
 /* ── 타이틀/HUD/로더/캡션 문구 ── */
-h = h.replace(/<title>[\s\S]*?<\/title>/, "<title>전문인재 양성과정 운영계획 — 3D 발표 (ssjvoice)</title>");
+h = h.replace(/<title>[\s\S]*?<\/title>/, "<title>AI 챔피언 고급과정 운영계획 — 3D 발표 (ssjvoice)</title>");
 h = h.replace(/<div id="loader"><div class="pl"><\/div><p>[\s\S]*?<\/p><\/div>/,
   '<div id="loader"><div class="pl"></div><p>운영계획 3D 무대 준비 중…</p></div>');
 h = h.replace(/<div id="hud"><p class="hk">[\s\S]*?<\/p><\/div>/,
-  '<div id="hud"><p class="hk">PROLOGUE</p><p class="ht">전문인재 양성과정 운영계획</p></div>');
+  '<div id="hud"><p class="hk">PROLOGUE</p><p class="ht">AI 챔피언 고급과정 운영계획</p></div>');
 h = h.replace(/<a id="srcbtn"[\s\S]*?<\/a>/, "");
 h = h.replace(/<div id="caption"><span class="cno">★<\/span><span class="ctx">[\s\S]*?<\/span><\/div>/,
   '<div id="caption"><span class="cno">★</span><span class="ctx">▶ 재생을 누르면 ssjvoice 나레이션과 함께 자동 상영됩니다. 스크롤로 직접 볼 수도 있어요.</span></div>');
@@ -29,7 +29,7 @@ h = h.replace(/<div id="caption"><span class="cno">★<\/span><span class="ctx">
 /* ── 챕터(캡션 = 나레이션 대본 그대로) ── */
 const CH = `
   { kicker:"PROLOGUE", title:"운영계획 한눈에", color:"#98a0b4",
-    caps:["여러분, 반갑습니다. 지금부터 올해 전문인재 양성과정이 어떻게 굴러가는지 — 전체 그림을 한 번에 보여드리겠습니다.",
+    caps:["여러분, 반갑습니다. 지금부터 올해 AI 챔피언 고급과정이 어떻게 굴러가는지 — 전체 그림을 한 번에 보여드리겠습니다.",
           "화면의 문장 그대로입니다. 개인으로 증명하고, 팀으로 완성한다. 이 한 문장이 오늘 발표의 전부입니다.",
           "숫자 네 개만 먼저 기억해 주세요. 정원 48명 — 1기 스물네 명, 2기 스물네 명. 팀프로젝트 12팀. 파생되는 기관컨설팅 5개 기관. 끝나는 시점 — 10월 말입니다."] },
   { kicker:"MASTER FLOW", title:"전체 구조", color:"#98a0b4",
@@ -48,7 +48,7 @@ const CH = `
           "2주차 — 8월 13일과 14일. 오전 완성, 오후 발표·평가. 그리고 과제 — 소속 기관의 페인포인트를 찾아오세요. 정의하고, 인터뷰하고, 근거를 확보합니다.",
           "3주차 — 8월 27일과 28일. 오전에 과제 확정, 바로 개발. 실데이터가 있으면 실데이터로, 없으면 목업으로.",
           "4주차 — 9월 3일과 4일. 오전 마무리, 오후 최종 발표. NIA·행정안전부·CDSA 평가단이 전원을 평가해 상위 5개 기관을 선정합니다.",
-          "주제요? 뭐든 됩니다. 폐쇄망 프로그램, 클라우드 서비스, 크롬 확장, 웹앱, 앱, 논문, 라즈베리파이까지. 막히면 주말 줌 개별코칭을 잡으세요. 혼자 붙잡고 계시지 마세요."] },
+          "주제요? 뭐든 됩니다. 폐쇄망 프로그램, 클라우드 정보서비스, 크롬 확장프로그램, 웹앱, 앱, 논문까지. 막히면 주말 줌 개별코칭을 잡으세요. 혼자 붙잡고 계시지 마세요."] },
   { kicker:"SELECTION", title:"48 → 5", color:"#e8c268",
     caps:["지금 화면에 뜨는 점 하나하나가 — 여러분입니다. 1기, 2기 구분 없이 전원. 같은 평가자가, 같은 기준으로 순위를 매깁니다.",
           "그중 다섯. 다섯 개 기관이 기관컨설팅 무대에 오르고 — 선정된 순간부터, 그분은 소속 기관 PoC의 PM이 됩니다."] },
@@ -65,7 +65,7 @@ const CH = `
           "기관컨설팅 선정자 다섯 분은 팀프로젝트와 PM을 병행합니다 — 일정 관리는 저희가 같이 설계합니다."] },
   { kicker:"AWARDS & SUPPORT", title:"별개의 두 예산", color:"#e8c268",
     caps:["돈 이야기입니다. 헷갈리기 쉬워서 대놓고 말씀드립니다 — 시상금과 활동지원비는, 별개의 두 예산입니다.",
-          "팀프로젝트 시상 — 1·2기 통합 다섯 팀. 최우수 200만원, 우수 100만원, 혁신상 세 팀 각 50만원. AI 구독료 30만원은 별도 지원.",
+          "팀프로젝트 시상 — 대상 1팀(1·2기 통합) 100만원. 최우수 1·2기 각 1팀, 각 80만원. 혁신상 1·2기 각 1팀, 각 50만원. 팀당 AI 구독료 30만원은 별도 지원.",
           "기관컨설팅 활동지원비 — 기관당 최대 300여만원 실비. 왼쪽은 성적, 오른쪽은 참여 — 서로 다른 주머니입니다."] },
   { kicker:"CLOSING", title:"개인으로 증명, 팀으로 완성", color:"#eceef4",
     caps:["정리하겠습니다. 하나 — 혼자 완성합니다. 개인프로젝트 4주, 1인 1주제. 둘 — 팀으로 완성합니다. 팀프로젝트 4주, 시상, 그리고 책.",
@@ -100,7 +100,7 @@ h = h.replace("glowSprite(color, r * 3.2)","glowSprite(color, r * 2.5, .26)");
 const ZONES = `function buildZones() {
   /* Z0 오프닝 */
   let z = zone(0);
-  st(z, makeText("전문인재 양성과정", { size: 2.5, color: C.ink }), 0, [0, 28.4, 6]);
+  st(z, makeText("AI 챔피언 고급과정", { size: 2.2, color: C.ink }), 0, [0, 28.4, 6]);
   st(z, makeText("OPERATION PLAN 2026", { size: .8, color: C.dim, weight: 600 }), 0, [0, 30.6, 6]);
   st(z, makeText("개인으로 증명하고, 팀으로 완성한다", { size: 1.1, color: C.gold, weight: 700 }), 1, [0, 25.6, 6]);
   const stats = [
@@ -163,7 +163,7 @@ const ZONES = `function buildZones() {
   st(z, makeCard({ w: 6.6, title: "4주차 09/03·04", color: C.violet,
     lines: ["최종 발표 · 평가", "!상위 5개 기관 선정"] }), 5, [-22.5, 7.2, .5]);
   st(z, makeCard({ w: 13.5, title: "주제는 뭐든 됩니다", color: C.dim,
-    lines: ["폐쇄망 · 클라우드 · 크롬확장 · 웹앱 · 앱 · 논문 · 라즈베리파이", "!주말 줌 개별코칭 지원"] }), 6, [-30, 2.4, 1.5]);
+    lines: ["폐쇄망 · 클라우드 정보서비스 · 크롬확장 · 웹앱 · 앱 · 논문", "!주말 줌 개별코칭 지원"] }), 6, [-30, 2.4, 1.5]);
 
   /* Z4 선발 48→5 */
   z = zone(4);
@@ -230,7 +230,7 @@ const ZONES = `function buildZones() {
   st(z, makeCard({ w: 12.5, title: "별개의 두 예산", color: C.gold,
     lines: ["시상금 ↔ 활동지원비", "!섞어서 계산하지 마세요"] }), 0, [0, 49.4, 1]);
   const pod = new T.Group();
-  const podData = [[0, 3.4, 0xffc94d, "최우수 200"], [-3.1, 2.3, 0xc8cfdd, "우수 100"], [3.1, 1.7, 0xcd8f52, "혁신×3 각50"]];
+  const podData = [[0, 3.4, 0xffc94d, "대상 100"], [-3.1, 2.6, 0xc8cfdd, "최우수×2 각80"], [3.1, 1.9, 0xcd8f52, "혁신×2 각50"]];
   podData.forEach(([x, hh, cc, lb]) => {
     const b = new T.Mesh(new T.BoxGeometry(2.6, hh, 2.2),
       new T.MeshBasicMaterial({ color: cc, transparent: true, opacity: .85 }));
@@ -240,7 +240,7 @@ const ZONES = `function buildZones() {
     pod.add(b, t);
   });
   st(z, pod, 1, [-5.5, 41.4, 0],
-    { t: "팀프로젝트 시상 — 1·2기 통합 5팀", b: "최우수 1팀 200만원 · 우수 1팀 100만원 · 혁신상 3팀 각 50만원.\\n팀당 AI 구독료 30만원은 별도 지원." });
+    { t: "팀프로젝트 시상 — 총 5팀", b: "대상 1팀(1·2기 통합) 100만원\\n최우수 2팀(기수별 각 1팀) 각 80만원\\n혁신상 2팀(기수별 각 1팀) 각 50만원\\n팀당 AI 구독료 30만원은 별도 지원." });
   st(z, makeText("시상금 — 팀프로젝트 성적", { size: .7, color: C.dim, weight: 700 }), 1, [-5.5, 39.9, 1]);
   st(z, makeCard({ w: 9, title: "활동지원비", color: C.green,
     lines: ["기관컨설팅 참여 기관당", "!최대 300여만원 · 실비 정산"] }), 2, [6, 44.2, .5]);
@@ -288,7 +288,7 @@ const SUB = {
  4:[{p:[0,4,11.5],l:[0,3.7,0]},{p:[0,3.2,9],l:[0,3.1,0]}],
  5:[{p:[30,14.6,8],l:[30,14.5,0]},{p:[30,7.8,11],l:[30,7.5,0]},{p:[37,11.3,6.5],l:[37.6,11.4,0]},{p:[30,1.4,7],l:[30,1.25,0]}],
  6:[{p:[30,33.7,7.5],l:[30,33.8,0]},{p:[27.2,29.5,7],l:[27.2,29.4,0]},{p:[36.8,29.5,7],l:[36.8,29.4,0]},{p:[30,24.3,9.4],l:[30,24.2,0]},{p:[30,20.7,7],l:[30,20.6,0]}],
- 7:[{p:[0,49.3,8],l:[0,49.4,0]},{p:[-5.5,42,7],l:[-5.5,41.8,0]},{p:[5.5,44,6.5],l:[5.9,44.2,0]}],
+ 7:[{p:[0,49.3,8],l:[0,49.4,0]},{p:[-5.5,42.2,9.6],l:[-5.5,41.9,0]},{p:[5.5,44,6.5],l:[5.9,44.2,0]}],
  8:[{p:[0,22,26],l:[0,22.2,8]},{p:[0,20.4,29],l:[0,20.2,8]},{p:[0,16.8,33],l:[0,16.2,8]},{p:[0,20,54],l:[0,16,8]}]
 };
 Object.keys(SUB).forEach(function(k){SUB[k]=SUB[k].map(function(a){return {p:new T.Vector3(a.p[0],a.p[1],a.p[2]), l:new T.Vector3(a.l[0],a.l[1],a.l[2])};});});
