@@ -287,7 +287,7 @@ const SUB = {
  3:[{p:[-30,13.7,7],l:[-30,13.7,0]},{p:[-30,10.4,6],l:[-30,10.3,0]},{p:[-37.4,7.4,5],l:[-37.5,7.25,0]},{p:[-32.5,7.4,5],l:[-32.5,7.25,0]},{p:[-27.5,7.4,5],l:[-27.5,7.25,0]},{p:[-22.6,7.4,5],l:[-22.5,7.25,0]},{p:[-30,2.6,8.5],l:[-30,2.4,0]}],
  4:[{p:[0,4,11.5],l:[0,3.7,0]},{p:[0,3.2,9],l:[0,3.1,0]}],
  5:[{p:[30,14.6,8],l:[30,14.5,0]},{p:[30,7.8,11],l:[30,7.5,0]},{p:[37,11.3,6.5],l:[37.6,11.4,0]},{p:[30,1.4,7],l:[30,1.25,0]}],
- 6:[{p:[30,33.7,7.5],l:[30,33.8,0]},{p:[27.2,29.5,7],l:[27.2,29.4,0]},{p:[36.8,29.5,7],l:[36.8,29.4,0]},{p:[30,24.3,7.5],l:[30,24.2,0]},{p:[30,20.7,7],l:[30,20.6,0]}],
+ 6:[{p:[30,33.7,7.5],l:[30,33.8,0]},{p:[27.2,29.5,7],l:[27.2,29.4,0]},{p:[36.8,29.5,7],l:[36.8,29.4,0]},{p:[30,24.3,9.4],l:[30,24.2,0]},{p:[30,20.7,7],l:[30,20.6,0]}],
  7:[{p:[0,49.3,8],l:[0,49.4,0]},{p:[-5.5,42,7],l:[-5.5,41.8,0]},{p:[5.5,44,6.5],l:[5.9,44.2,0]}],
  8:[{p:[0,22,26],l:[0,22.2,8]},{p:[0,20.4,29],l:[0,20.2,8]},{p:[0,16.8,33],l:[0,16.2,8]},{p:[0,20,54],l:[0,16,8]}]
 };
@@ -315,6 +315,20 @@ h = h.replace(`    p = A[i].p.clone().lerp(A[i + 1].p, t);
     p = s0.p.lerp(s1.p, t);
     l = s0.l.lerp(s1.l, t);`);
 
+/* ── 현재 문장 팝-포워드 + 딤: st()에 basePos/재질 수집 추가 ── */
+{
+  const ST_OLD=["function st(z, obj, step, pos, info) {","  obj.position.set(...pos);","  obj.userData.step = step;"].join("\n");
+  const ST_NEW=["function st(z, obj, step, pos, info) {","  obj.position.set(...pos);","  obj.userData.step = step;","  obj.userData.basePos = new T.Vector3(...pos);","  obj.userData._mats = [];","  obj.traverse(function(nn){ if (nn.material && nn.material.opacity !== undefined) obj.userData._mats.push({ m: nn.material, b: nn.material.opacity }); });"].join("\n");
+  if(!h.includes(ST_OLD)) throw new Error("st() anchor not found");
+  h = h.replace(ST_OLD, ST_NEW);
+}
+{
+  const LP_OLD=["      z.userData.steps.forEach(o => {","        const on = o.userData.step <= idx;","        if (o.userData.arrow) { o.userData.arrow.target = on ? 1 : 0; return; }","        o.scale.lerp(o.userData.base.clone().multiplyScalar(on ? 1 : .0001), kk);","      });"].join("\n");
+  const LP_NEW=["      z.userData.steps.forEach(o => {","        const on = o.userData.step <= idx;","        if (o.userData.arrow) { o.userData.arrow.target = on ? 1 : 0; return; }","        const isCur = (zi === active) && idx < 90 && o.userData.step === idx;","        o.scale.lerp(o.userData.base.clone().multiplyScalar(on ? (isCur ? 1.02 : 1) : .0001), kk);","        if (o.userData.basePos) {","          const tp = o.userData.basePos.clone();","          if (isCur) { _pop.subVectors(camera.position, o.userData.basePos); const pd = Math.min(1.0, _pop.length() * .12); tp.add(_pop.normalize().multiplyScalar(pd)); }","          o.position.x = lerp(o.position.x, tp.x, kk);","          o.position.y = lerp(o.position.y, tp.y, kk);","          o.position.z = lerp(o.position.z, tp.z, kk);","          o.renderOrder = isCur ? 999 : 0;","        }","        const dimT = (zi === active && idx < 90 && on && !isCur) ? .32 : 1;","        if (o.userData._mats) o.userData._mats.forEach(function(e){ e.m.transparent = true; e.m.opacity = lerp(e.m.opacity, e.b * (on ? dimT : 1), kk); });","      });"].join("\n");
+  if(!h.includes(LP_OLD)) throw new Error("step loop anchor not found");
+  h = h.replace(LP_OLD, LP_NEW);
+  h = h.replace("let cur = null, last = performance.now();", "const _pop = new T.Vector3();\nlet cur = null, last = performance.now();");
+}
 /* ── 존 가시성: 인접 존만 (클로징은 전체 조감) ── */
 {
   const ZV_OLD=["zones.forEach((z, zi) => {","      if (!z) return;","      const nCaps = CH[zi].caps.length;"].join("\n");
@@ -345,6 +359,7 @@ document.head.appendChild(css);
 var b=document.createElement('button');b.id='npStart';b.textContent='▶  나레이션과 함께 자동 상영 (ssjvoice)';
 var ctl=document.createElement('div');ctl.id='npCtl';ctl.innerHTML='<button id="npBtn">⏸ 일시정지</button>';
 document.body.appendChild(b);document.body.appendChild(ctl);
+var engaged=false,wT=0;
 var P={on:false,idx:0,gen:0,audio:null,t0:0,dur:0,fromY:0,toY:0,timer:0,raf:0};
 P.est=function(n){return Math.max(2600,n*150);};
 P.line=function(){
@@ -378,10 +393,10 @@ P.line=function(){
     P.raf=requestAnimationFrame(tick);
   })();
 };
-P.start=function(from){this.stopAudio();this.on=true;this.idx=from||0;this.gen++;
+P.start=function(from){engaged=true;this.stopAudio();this.on=true;this.idx=from||0;this.gen++;
   b.classList.add('off');ctl.classList.add('on');
   document.getElementById('npBtn').textContent='⏸ 일시정지';this.line();};
-P.pause=function(){this.on=false;this.gen++;this.stopAudio();
+P.pause=function(){engaged=false;this.on=false;this.gen++;this.stopAudio();
   cancelAnimationFrame(this.raf);clearTimeout(this.timer);
   document.getElementById('npBtn').textContent='▶ 이어보기';};
 P.resume=function(){
@@ -389,13 +404,20 @@ P.resume=function(){
   for(var i=0;i<TOTAL;i++){var d=Math.abs(targetY(i)-y);if(d<bd){bd=d;best=i;}}
   this.start(best);};
 P.stopAudio=function(){if(this.audio){this.audio.pause();this.audio=null;}};
-P.finish=function(){this.on=false;this.gen++;this.stopAudio();
+P.finish=function(){engaged=false;this.on=false;this.gen++;this.stopAudio();
   document.getElementById('npBtn').textContent='↺ 다시보기';};
 b.addEventListener('click',function(){P.start(0);});
 document.getElementById('npBtn').addEventListener('click',function(){
   if(P.on)P.pause();else if(P.idx>=TOTAL)P.start(0);else P.resume();});
+/* 스크럽 = 끊김이 아니라 위치 이동: 멈추면 그 지점 문장부터 이어서 재생 */
 ['wheel','touchmove'].forEach(function(ev){
-  addEventListener(ev,function(){if(P.on)P.pause();},{passive:true});});
+  addEventListener(ev,function(){
+    if(!engaged)return;
+    if(P.on){P.on=false;P.gen++;P.stopAudio();cancelAnimationFrame(P.raf);clearTimeout(P.timer);
+      document.getElementById('npBtn').textContent='↕ 위치 이동 중…';}
+    clearTimeout(wT);
+    wT=setTimeout(function(){if(engaged&&!P.on){document.getElementById('npBtn').textContent='⏸ 일시정지';P.resume();}},650);
+  },{passive:true});});
 addEventListener('keydown',function(e){
   if(e.code!=='Space')return;e.preventDefault();
   if(P.on)P.pause();else if(b.classList.contains('off'))P.resume();else P.start(0);});
