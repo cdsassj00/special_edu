@@ -3,7 +3,7 @@ const fs = require("fs");
 const SRC = "/root/.claude/uploads/f6d2288b-24ca-5b33-b8d1-3127ba61d913/56562018-_______3D.html";
 const OUT = "/home/user/special_edu/presentation3d.html";
 let h = fs.readFileSync(SRC, "utf8");
-const NEWCARD_SRC = "function makeCard(o) {\n  const W = 1024, pad = 46;\n  const lines = o.lines || [];\n  const LH = 56, TH = o.title ? 82 : 28;\n  const H = TH + lines.length * LH + 40;\n  const tex = cTex(W, H, c => {\n    c.fillStyle = \"rgba(9,11,19,.94)\"; rr(c, 0, 0, W, H, 22); c.fill();\n    c.globalAlpha = .55; c.strokeStyle = o.color; c.lineWidth = 2.5; rr(c, 1.5, 1.5, W-3, H-3, 21); c.stroke();\n    c.globalAlpha = 1;\n    c.fillStyle = o.color; rr(c, 0, 30, 6, TH - 40, 3); c.fill();\n    let y = 0;\n    if (o.title) { c.font = fw(700, 40); c.fillStyle = o.color; c.fillText(o.title, pad, 56); y = TH; } else y = 28;\n    lines.forEach((ln, i2) => {\n      const hot = ln.startsWith(\"!\");\n      c.font = fw(hot ? 700 : 400, 33);\n      c.fillStyle = hot ? \"#e8c268\" : \"#ccd3e0\";\n      c.fillText(ln.replace(/^!/, \"\"), pad, y + 42 + i2 * LH);\n    });\n  });\n  const h2 = o.w * H / W;\n  const m = new T.Mesh(new T.PlaneGeometry(o.w, h2),\n    new T.MeshBasicMaterial({ map: tex, transparent: true, side: T.DoubleSide }));\n  const g = new T.Group(); g.add(m); g.userData.mesh = m;\n  return g;\n}";
+const NEWCARD_SRC = "function makeCard(o) {\n  const W = 1024, pad = 46;\n  const lines = o.lines || [];\n  const LH = 56, TH = o.title ? 82 : 28;\n  const H = TH + lines.length * LH + 40;\n  const tex = cTex(W, H, c => {\n    const inv = o.invert;\n    c.fillStyle = inv ? \"rgba(242,244,248,.97)\" : \"rgba(9,11,19,.94)\"; rr(c, 0, 0, W, H, 22); c.fill();\n    c.globalAlpha = inv ? .8 : .55; c.strokeStyle = inv ? \"#c2cad8\" : o.color; c.lineWidth = 2.5; rr(c, 1.5, 1.5, W-3, H-3, 21); c.stroke();\n    c.globalAlpha = 1;\n    c.fillStyle = inv ? \"#141a28\" : o.color; rr(c, 0, 30, 6, TH - 40, 3); c.fill();\n    let y = 0;\n    if (o.title) { c.font = fw(700, 40); c.fillStyle = inv ? \"#10151f\" : o.color; c.fillText(o.title, pad, 56); y = TH; } else y = 28;\n    lines.forEach((ln, i2) => {\n      const hot = ln.startsWith(\"!\");\n      c.font = fw(hot ? 700 : 400, 33);\n      c.fillStyle = hot ? (inv ? \"#8a6a12\" : \"#e8c268\") : (inv ? \"#2a3242\" : \"#ccd3e0\");\n      c.fillText(ln.replace(/^!/, \"\"), pad, y + 42 + i2 * LH);\n    });\n  });\n  const h2 = o.w * H / W;\n  const m = new T.Mesh(new T.PlaneGeometry(o.w, h2),\n    new T.MeshBasicMaterial({ map: tex, transparent: true, side: T.DoubleSide }));\n  const g = new T.Group(); g.add(m); g.userData.mesh = m;\n  return g;\n}";
 const CONSTC = 'const C = { amber:"#c9d2e0", blue:"#aab6c9", green:"#aab6c9", violet:"#98a2b5", red:"#e8c268", gold:"#e8c268", orange:"#b0bac9", ink:"#f2f4f8", dim:"#8a93a8" };';
 
 
@@ -131,10 +131,27 @@ const ZONES = `function buildZones() {
     lines: ["09/17 ~ 10/23 · 4인 1팀", "해커톤형 → 시상 · 책 발간"] }), 3, [8, 18, -55],
     { t: "팀프로젝트 — 과정 완성형", b: "다기관 혼성 4인 팀 12개.\\n최종 발표·시상, 보고서는 책으로." });
   st(z, makeArrow([[12.5, 18, -55], [15.5, 18.8, -54.5], [18, 18, -55]], C.blue, { packets: 1 }), 3, [0, 0, 0]);
-  st(z, makeCard({ w: 5.6, title: "10월 말", color: C.ink, lines: ["과정 완성"] }), 3, [22.5, 18, -55]);
-  st(z, makeArrow([[-8, 15.6, -55], [-8, 12.5, -53.8], [-8, 10.2, -55]], C.gold, { r: .13, packets: 1 }), 4, [0, 0, 0]);
+  st(z, (function(){
+    const g = new T.Group();
+    const gl = glowSprite("#ffffff", 9, .38); gl.position.z = -.4; g.add(gl);
+    g.add(makeCard({ w: 5.6, title: "10월 말", color: C.ink, invert: true, lines: ["과정 완성"] }));
+    return g;
+  })(), 3, [22.5, 18, -55]);
+  st(z, (function(){
+    const g = new T.Group();
+    const curve = new T.CatmullRomCurve3([new T.Vector3(-8, 15.6, -55), new T.Vector3(-8, 12.9, -53.9), new T.Vector3(-8, 11.6, -55)]);
+    for (let i = 0; i <= 9; i++) {
+      const pt = curve.getPoint(i / 9);
+      const d = new T.Mesh(new T.SphereGeometry(.17, 10, 8),
+        new T.MeshBasicMaterial({ color: 0xe8c268, transparent: true, opacity: .95 }));
+      d.position.copy(pt); g.add(d);
+    }
+    const tip = new T.Mesh(new T.ConeGeometry(.42, 1.1, 10), new T.MeshBasicMaterial({ color: 0xe8c268 }));
+    tip.position.set(-8, 10.9, -55); tip.rotation.z = Math.PI; g.add(tip);
+    return g;
+  })(), 4, [0, 0, 0]);
   st(z, makeCard({ w: 9.4, title: "↘ 기관컨설팅 (파생·독립)", color: C.gold,
-    lines: ["5개 기관 · 전문인재 = PM", "~10월 말 · 본선과 병행"] }), 4, [-8, 7.6, -55],
+    lines: ["5개 기관 · 전문인재 = PM", "~10월 말 · 본선과 병행"] }), 4, [-8, 8.5, -55],
     { t: "기관컨설팅 — 파생 트랙", b: "선정된 5명만 추가로 여는 독립 프로젝트.\\n본선(팀프로젝트)과 병행합니다." });
 
   /* Z2 사람 */
@@ -282,7 +299,7 @@ if (!h.includes("const A = [")) h = h.replace("\n  { p: [0, 21, 42]", "\nconst A
 const SUBCODE = `
 const SUB = {
  0:[{p:[0,27.5,30],l:[0,28.2,6]},{p:[0,25.2,19],l:[0,25.4,6]},{p:[0,19.6,14],l:[0,19.9,1]}],
- 1:[{p:[0,26.4,-45.5],l:[0,26.5,-54]},{p:[-24,18,-47],l:[-24,18,-55]},{p:[-8,18,-47],l:[-8,18,-55]},{p:[14.5,18,-43],l:[14.8,18,-55]},{p:[-8,12.2,-46.5],l:[-8,12.1,-55]}],
+ 1:[{p:[0,26.4,-45.5],l:[0,26.5,-54]},{p:[-24,18,-47],l:[-24,18,-55]},{p:[-8,18,-47],l:[-8,18,-55]},{p:[15.8,18,-44],l:[16,18,-55]},{p:[-8,12.6,-45],l:[-8,11.8,-55]}],
  2:[{p:[-30,29,11],l:[-30,28.8,0]},{p:[-30,22.6,8],l:[-30,22.4,0]}],
  3:[{p:[-30,13.7,7],l:[-30,13.7,0]},{p:[-30,10.4,6],l:[-30,10.3,0]},{p:[-37.4,7.4,5],l:[-37.5,7.25,0]},{p:[-32.5,7.4,5],l:[-32.5,7.25,0]},{p:[-27.5,7.4,5],l:[-27.5,7.25,0]},{p:[-22.6,7.4,5],l:[-22.5,7.25,0]},{p:[-30,2.6,8.5],l:[-30,2.4,0]}],
  4:[{p:[0,4,11.5],l:[0,3.7,0]},{p:[0,3.2,9],l:[0,3.1,0]}],
@@ -296,7 +313,7 @@ function segAt(i, t){
   const S2=SUB[i];
   if(!S2) return {p:A[i].p.clone(), l:A[i].l.clone()};
   if(S2.length<2) return {p:S2[0].p.clone(), l:S2[0].l.clone()};
-  const x=clamp(t,0,1)*(S2.length-1);
+  const x=clamp(clamp(t,0,1)*S2.length-.5,0,S2.length-1);
   const k=Math.min(S2.length-2,Math.max(0,Math.floor(x)));
   const u=ease(clamp((x-k-.55)/.45,0,1));   /* 앵커에서 머물다가 다음 문장으로 이동 */
   return {p:S2[k].p.clone().lerp(S2[k+1].p,u), l:S2[k].l.clone().lerp(S2[k+1].l,u)};
