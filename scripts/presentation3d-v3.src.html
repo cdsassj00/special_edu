@@ -58,12 +58,12 @@
 <canvas id="gl"></canvas>
 <div id="vignette"></div>
 <div id="flash"></div>
-<div id="loader"><div class="pl"></div><p>NEON STAGE LOADING…</p></div>
+<div id="loader"><div class="pl"></div><p>STAGE LOADING…</p></div>
 <div id="progress"></div>
 <div id="hud"><p class="hk">PROLOGUE</p><p class="ht">AI 챔피언 고급과정 운영계획</p></div>
 <div id="dots"></div>
-<div id="caption"><span class="cno">★</span><span class="ctx">▶ 재생을 누르면 ssjvoice 나레이션과 함께 터널 비행이 시작됩니다. 스크롤로 직접 스크럽할 수도 있어요.</span></div>
-<div id="hint">SCROLL / DRIVE</div>
+<div id="caption"><span class="cno">★</span><span class="ctx">▶ 재생을 누르면 ssjvoice 나레이션과 함께 3D 무대가 시작됩니다. 스크롤로 직접 스크럽할 수도 있어요.</span></div>
+<div id="hint">SCROLL</div>
 <button id="npStart">▶ 나레이션과 함께 자동 상영 (ssjvoice)</button>
 <div id="npCtl"><button id="npBtn">⏸ 일시정지</button></div>
 
@@ -153,21 +153,10 @@ addEventListener('resize',function(){camera.aspect=innerWidth/innerHeight;camera
   renderer.setSize(innerWidth,innerHeight);composer.setSize(innerWidth,innerHeight);},{passive:true});
 
 /* ═══ 여정 곡선 + 터널 ═══ */
-var pts=[];for(var k=0;k<=10;k++)pts.push(new T.Vector3(Math.sin(k*1.9)*34,Math.cos(k*1.4)*20,-k*90));
+var pts=[];for(var k=0;k<=10;k++)pts.push(new T.Vector3(0,0,-k*90));
 var curve=new T.CatmullRomCurve3(pts);
 var tunUni={uT:{value:0}};
-var tunnel=new T.Mesh(new T.TubeGeometry(curve,420,24,28,false),new T.ShaderMaterial({
-  uniforms:tunUni,side:T.BackSide,
-  vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-  fragmentShader:'uniform float uT;varying vec2 vUv;\n'+
-   'void main(){\n'+
-   ' float lu=smoothstep(.986,1.,fract(vUv.x*150.-uT*.55));\n'+
-   ' float lv=smoothstep(.965,1.,fract(vUv.y*26.));\n'+
-   ' float pulse=.5+.5*sin(uT*2.2+vUv.x*40.);\n'+
-   ' vec3 col=vec3(1.,.8,.42)*lu*(.26+.18*pulse)+vec3(.4,.46,.6)*lv*.09;\n'+
-   ' gl_FragColor=vec4(col,1.);}'
-}));
-scene.add(tunnel);
+/* 터널 제거 — 스포트라이트 스테이지 */
 /* 스트리밍 입자 */
 (function(){
   var n=3600,arr=new Float32Array(n*3),cl=new Float32Array(n*3);
@@ -184,6 +173,22 @@ scene.add(tunnel);
   scene.add(new T.Points(geo,new T.PointsMaterial({size:.4,vertexColors:true,transparent:true,opacity:.42,
     blending:T.AdditiveBlending,depthWrite:false})));
 })();
+
+(function(){ /* 바닥 점 지평선 */
+  var n2=1400,arr2=new Float32Array(n2*3);
+  for(var i5=0;i5<n2;i5++){arr2[i5*3]=(Math.random()-.5)*320;arr2[i5*3+1]=-24-Math.random()*8;arr2[i5*3+2]=30-Math.random()*980;}
+  var g5=new T.BufferGeometry();g5.setAttribute('position',new T.BufferAttribute(arr2,3));
+  scene.add(new T.Points(g5,new T.PointsMaterial({color:0x707890,size:.5,transparent:true,opacity:.5,depthWrite:false})));
+})();
+var spot=(function(){ /* 현재 문장을 따라다니는 스포트라이트 */
+  var cv2=document.createElement('canvas');cv2.width=256;cv2.height=256;
+  var c5=cv2.getContext('2d');var gr=c5.createRadialGradient(128,128,10,128,128,126);
+  gr.addColorStop(0,'rgba(255,207,110,.30)');gr.addColorStop(1,'rgba(0,0,0,0)');
+  c5.fillStyle=gr;c5.fillRect(0,0,256,256);
+  var sp5=new T.Sprite(new T.SpriteMaterial({map:new T.CanvasTexture(cv2),transparent:true,depthWrite:false}));
+  sp5.scale.set(48,48,1);scene.add(sp5);return sp5;
+})();
+var IT={};
 
 /* ═══ 텍스처 헬퍼 ═══ */
 var fw=function(w,s){return w+' '+s+"px 'Pretendard Variable',Pretendard,'Malgun Gothic',sans-serif";};
@@ -226,8 +231,9 @@ function neonCanvas(o){
 function makePanel(o){
   var cv=neonCanvas(o);
   var w=o.w||19,h=w*cv.height/cv.width;
+  var tx3=new T.CanvasTexture(cv);tx3.anisotropy=8;
   var m=new T.Mesh(new T.PlaneGeometry(w,h),
-    new T.MeshBasicMaterial({map:new T.CanvasTexture(cv),transparent:true,side:T.DoubleSide,depthWrite:false}));
+    new T.MeshBasicMaterial({map:tx3,transparent:true,side:T.DoubleSide,depthWrite:false}));
   return m;
 }
 function textSprite(txt,px,color,noGlow){
@@ -265,7 +271,7 @@ function counterTile(target,suffix,label,color){
 
 /* ═══ 패널 배치 ═══ */
 var PANELS=[
- {t:'AI 챔피언 고급과정',l:['OPERATION PLAN 2026','!ssjvoice 나레이션 · 3D 저니'],w:16,off:[0,.9]},
+ {t:'AI 챔피언 고급과정',l:['OPERATION PLAN 2026','!ssjvoice 나레이션 · 모션그래픽 스테이지'],w:16,off:[0,.9]},
  {t:'개인으로 증명하고,',l:['!팀으로 완성한다'],w:16,off:[0,.7]},
  {kind:'counters4',du:5},
  {kind:'flowmap'},
@@ -305,6 +311,7 @@ var up0=new T.Vector3(0,1,0);
 var DU=13; /* 정지점 앞 거리(월드) */
 var pathLen=curve.getLength();
 var items=[]; /* {obj, g, kind, extra} */
+function regItem(it){items.push(it);IT[it.g]=it.obj;return it;}
 function placeAt(g,obj,latX,latY,duE){
   var pg=pOf(g),uP=clamp(pg+(DU+(duE||0))/pathLen,0,1);
   var pos=curve.getPointAt(uP);
@@ -327,7 +334,7 @@ function buildWorld(){
     if(!sp.kind){
       var m=makePanel({title:sp.t,lines:sp.l,w:sp.w,accent:sp.accent,whiteBox:sp.whiteBox,dots:sp.dots});
       m.material.opacity=0;m.scale.setScalar(.001);
-      items.push({obj:placeAt(g,m,off[0],off[1],duE),g:g,kind:'panel'});
+      regItem({obj:placeAt(g,m,off[0],off[1],duE),g:g,kind:'panel'});
     }else if(sp.kind==='flowmap'){
       var fm=new T.Group();
       function fnode(tt,x2,y2,white){
@@ -339,7 +346,7 @@ function buildWorld(){
         c2.font=fw(800,56);c2.textAlign='center';c2.textBaseline='middle';
         c2.fillStyle=white?'#10151f':'#ffcf6e';c2.fillText(tt,256,78);
         var mn=new T.Mesh(new T.PlaneGeometry(8.6,8.6*150/512),
-          new T.MeshBasicMaterial({map:new T.CanvasTexture(cvn),transparent:true,side:T.DoubleSide,depthWrite:false}));
+          new T.MeshBasicMaterial({map:(function(tx2){tx2.anisotropy=8;return tx2;})(new T.CanvasTexture(cvn)),transparent:true,side:T.DoubleSide,depthWrite:false}));
         mn.position.set(x2,y2,0);fm.add(mn);return mn;}
       fnode('① 개인 4주',-16.2,3.4);fnode('② 평가·선발',-5.4,3.4);
       fnode('③ 팀 4주',5.4,3.4);fnode('10월 말',15.9,3.4,true);
@@ -353,7 +360,7 @@ function buildWorld(){
           new T.MeshBasicMaterial({color:0xffcf6e,transparent:true,opacity:.8}));
         dm.position.set(-5.4,1.7-dd*1.4,0);fm.add(dm);}
       fm.scale.setScalar(.001);
-      items.push({obj:placeAt(g,fm,0,.8,10),g:g,kind:'group'});
+      regItem({obj:placeAt(g,fm,0,.8,10),g:g,kind:'group'});
       specials.flowmap=fm;
     }else if(sp.kind==='counters4'){
       var grp=new T.Group();
@@ -361,7 +368,7 @@ function buildWorld(){
        [5,'','파생 · 기관컨설팅','#c9a8ff',3.9],[10,'월','전체 완료','#7ee3a8',11.7]].forEach(function(cc){
         var tile=counterTile(cc[0],cc[1],cc[2],cc[3]);tile.position.x=cc[4];grp.add(tile);});
       grp.scale.setScalar(.001);
-      items.push({obj:placeAt(g,grp,0,0,duE),g:g,kind:'group'});
+      regItem({obj:placeAt(g,grp,0,0,duE),g:g,kind:'group'});
       specials.counters4=grp;
     }else if(sp.kind==='counters3'){
       var g3=new T.Group();
@@ -371,7 +378,7 @@ function buildWorld(){
       var nm=textSprite('이중균 · 현중균 · 신성진 · 김용재 · 김태유',44,'#cfd6e4');
       nm.position.y=-4.4;nm.scale.set(20,3.9,1);g3.add(nm);
       g3.scale.setScalar(.001);
-      items.push({obj:placeAt(g,g3,0,.5,duE),g:g,kind:'group'});
+      regItem({obj:placeAt(g,g3,0,.5,duE),g:g,kind:'group'});
       specials.counters3=g3;
     }else if(sp.kind==='swarm'){
       var sw=new T.Group();
@@ -389,14 +396,14 @@ function buildWorld(){
       }
       sw.userData.dots=dots;
       sw.scale.setScalar(.001);
-      items.push({obj:placeAt(g+1,sw,0,0,5),g:g,kind:'group'});
+      regItem({obj:placeAt(g+1,sw,0,0,5),g:g,kind:'group'});
       specials.swarm=sw;
       var lb=textSprite('SELECTION — 48 → 5',58,'#ffcf6e');
       lb.position.y=8.4;sw.add(lb);
     }else if(sp.kind==='swarmLabel'){
       var lb2=textSprite('5개 기관 → 전문인재 = PM',52,'#ffcf6e');
       lb2.material.opacity=0;lb2.scale.set(19,3.7,1);
-      items.push({obj:placeAt(g,lb2,0,-7,5),g:g,kind:'panel'});
+      regItem({obj:placeAt(g,lb2,0,-7,5),g:g,kind:'panel'});
     }else if(sp.kind==='triangle'){
       var tg=new T.Group();
       function orb(r,col,lab,x,y){
@@ -418,14 +425,14 @@ function buildWorld(){
         cyl.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),dir.normalize());
         tg.add(cyl);});
       tg.scale.setScalar(.001);
-      items.push({obj:placeAt(g,tg,0,.5,duE),g:g,kind:'group'});
+      regItem({obj:placeAt(g,tg,0,.5,duE),g:g,kind:'group'});
       specials.triangle=tg;
     }else if(sp.kind==='counter300'){
       var c3=new T.Group();
       var tile300=counterTile(300,'','만원 · 기관당 실비 지원','#7ee3a8');
       tile300.scale.setScalar(1.5);c3.add(tile300);
       c3.scale.setScalar(.001);
-      items.push({obj:placeAt(g,c3,0,.5,duE),g:g,kind:'group'});
+      regItem({obj:placeAt(g,c3,0,.5,duE),g:g,kind:'group'});
       specials.counter300=c3;
     }else if(sp.kind==='podium'){
       var pg2=new T.Group();
@@ -442,7 +449,7 @@ function buildWorld(){
         lb3.position.set(pd[0],-5.4,1.2);pg2.add(lb3);
       });
       pg2.scale.setScalar(.001);
-      items.push({obj:placeAt(g,pg2,0,1,duE),g:g,kind:'group'});
+      regItem({obj:placeAt(g,pg2,0,1,duE),g:g,kind:'group'});
       specials.podium=pg2;
     }
   });
@@ -485,11 +492,13 @@ function loop(){
   camera.position.copy(pos);
   camera.lookAt(look);
   var tan2=curve.getTangentAt(clamp(u+.03,0,1));
-  if(!REDUCE)camera.rotateZ(clamp((tan2.x-tan.x)*2.2,-.16,.16)+mouse.sx*.04);
+  if(!REDUCE)camera.rotateZ(mouse.sx*.03);
   var travel=sa.local>HOLD?Math.sin((sa.local-HOLD)/(1-HOLD)*Math.PI):0;
-  camera.fov=70+travel*9;camera.updateProjectionMatrix();
+  camera.fov=68+travel*5;camera.updateProjectionMatrix();
 
   tunUni.uT.value=time;
+  var co=IT[cur];
+  if(co){spot.position.x=lerp(spot.position.x,co.position.x,.08);spot.position.y=lerp(spot.position.y,co.position.y,.08);spot.position.z=lerp(spot.position.z,co.position.z-6,.08);}
   bloom.strength=(isMobile?.42:.55)+travel*.22+shakeT*1.0;
 
   /* 무임승차 슬램 */
@@ -506,9 +515,9 @@ function loop(){
     ud.a=lerp(ud.a||0,on?1:0,.11);
     var s=Math.max(.001,(it.kind==='group'?1:1)*(ud.a<.999?outBack(ud.a):1));
     it.obj.scale.setScalar(s);
-    var op=on?(isCur?1:.24):0;
+    var op=on?(isCur?1:.14):0;
     var dCam=it.obj.position.distanceTo(camera.position);
-    op*=clamp((dCam-4.5)/5,0,1);
+    op*=clamp((dCam-6)/6,0,1);
     it.obj.traverse(function(nn){
       if(nn.material&&nn.material.opacity!==undefined){
         if(nn.userData._bo===undefined)nn.userData._bo=nn.material.opacity||1;
