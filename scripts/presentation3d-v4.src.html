@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 챔피언 고급과정 운영계획 — 3D 시네마틱 월드 (ssjvoice)</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{background:#05070d}
+  body{font-family:'Pretendard Variable',Pretendard,'Malgun Gothic',sans-serif;color:#eef2fa;overflow-x:hidden}
+  #spacer{position:relative;width:100%}
+  canvas#gl{position:fixed;inset:0;display:block}
+  #vignette{position:fixed;inset:0;pointer-events:none;z-index:5;
+    background:radial-gradient(120% 100% at 50% 50%,transparent 58%,rgba(0,0,0,.5) 100%)}
+  #flash{position:fixed;inset:0;pointer-events:none;z-index:6;background:#c1273a;opacity:0;mix-blend-mode:screen}
+  #loader{position:fixed;inset:0;z-index:100;background:#05070d;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:18px;transition:opacity .7s,visibility .7s}
+  #loader.done{opacity:0;visibility:hidden}
+  #loader .pl{width:46px;height:46px;border-radius:50%;border:3px solid #232a3a;border-top-color:#e8c268;
+    animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #loader p{font-size:13px;letter-spacing:.3em;color:#8d94a8}
+  #progress{position:fixed;top:0;left:0;height:3px;width:0;z-index:40;
+    background:linear-gradient(90deg,#e8c268,#fff)}
+  #hud{position:fixed;top:22px;left:26px;z-index:30}
+  #hud .hk{font-size:11px;letter-spacing:.42em;color:#e8c268;font-weight:800}
+  #hud .ht{font-size:19px;font-weight:800;margin-top:6px}
+  #dots{position:fixed;right:22px;top:50%;transform:translateY(-50%);z-index:30;display:flex;flex-direction:column;gap:10px}
+  #dots i{width:8px;height:8px;border-radius:50%;background:#333a4a;transition:.3s;cursor:pointer}
+  #dots i.on{background:#e8c268;transform:scale(1.35)}
+  #caption{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:35;
+    width:min(940px,92vw);display:flex;align-items:center;gap:14px;
+    background:rgba(5,6,10,.78);backdrop-filter:blur(12px);
+    border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:14px 20px}
+  #caption .cno{flex:0 0 auto;min-width:38px;height:38px;border-radius:11px;background:#e8c268;color:#171203;
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px}
+  #caption .ctx{font-size:16.5px;font-weight:600;line-height:1.55;transition:opacity .22s}
+  #caption .ctx.fade{opacity:0}
+  #hint{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);z-index:30;
+    font-size:11px;letter-spacing:.34em;color:#5b6275}
+  #npStart{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);z-index:99;cursor:pointer;
+    border:none;border-radius:999px;padding:16px 36px;font-size:16px;font-weight:800;font-family:inherit;
+    color:#171203;background:linear-gradient(120deg,#e8c268,#f4e3b0);
+    box-shadow:0 12px 40px -8px rgba(232,194,104,.6);
+    transition:transform .4s cubic-bezier(.34,1.56,.64,1),opacity .4s}
+  #npStart:hover{transform:translateX(-50%) translateY(-3px) scale(1.03)}
+  #npStart.off{opacity:0;pointer-events:none}
+  #npCtl{position:fixed;right:18px;bottom:18px;z-index:99;display:none}
+  #npCtl.on{display:block}
+  #npCtl button{cursor:pointer;border:1px solid rgba(232,194,104,.4);background:rgba(8,9,14,.8);color:#f4e3b0;
+    border-radius:999px;padding:9px 16px;font-size:13px;font-weight:700;font-family:inherit}
+  @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="spacer"></div>
+<canvas id="gl"></canvas>
+<div id="vignette"></div>
+<div id="flash"></div>
+<div id="loader"><div class="pl"></div><p>WORLD LOADING…</p></div>
+<div id="progress"></div>
+<div id="hud"><p class="hk">PROLOGUE</p><p class="ht">AI 챔피언 고급과정 운영계획</p></div>
+<div id="dots"></div>
+<div id="caption"><span class="cno">★</span><span class="ctx">▶ 재생을 누르면 살아있는 3D 월드에서 발표가 시작됩니다. 스크롤로 직접 스크럽할 수도 있어요.</span></div>
+<div id="hint">SCROLL</div>
+<button id="npStart">▶ 나레이션과 함께 자동 상영 (ssjvoice)</button>
+<div id="npCtl"><button id="npBtn">⏸ 일시정지</button></div>
+
+<script id="three-embed">/*THREE_EMBED*/</script>
+<script id="soldier-embed">/*SOLDIER_EMBED*/</script>
+<script>
+(function(){
+'use strict';
+var T=window.THREE;
+var REDUCE=matchMedia('(prefers-reduced-motion:reduce)').matches;
+var $=function(s){return document.querySelector(s);};
+var clamp=function(v,a,b){return Math.min(b,Math.max(a,v));};
+var lerp=function(a,b,t){return a+(b-a)*t;};
+var ease=function(t){return t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;};
+var smooth=function(t){return t*t*(3-2*t);};
+
+/* ═══ 대본 ═══ */
+var CHM=[
+ {k:'PROLOGUE',t:'운영계획 한눈에'},{k:'MASTER FLOW',t:'전체 구조'},
+ {k:'STRUCTURE',t:'추진체계 — 사람'},{k:'PHASE 01',t:'개인프로젝트'},
+ {k:'SELECTION',t:'48 → 5'},{k:'PHASE 02 · SPIN-OFF',t:'기관컨설팅'},
+ {k:'PHASE 03',t:'팀프로젝트'},{k:'AWARDS & SUPPORT',t:'별개의 두 예산'},
+ {k:'CLOSING',t:'개인으로 증명, 팀으로 완성'}];
+var CAPS=[
+'여러분, 반갑습니다. 지금부터 올해 AI 챔피언 고급과정이 어떻게 굴러가는지 — 전체 그림을 한 번에 보여드리겠습니다.',
+'화면의 문장 그대로입니다. 개인으로 증명하고, 팀으로 완성한다. 이 한 문장이 오늘 발표의 전부입니다.',
+'숫자 네 개만 먼저 기억해 주세요. 정원 48명 — 1기 스물네 명, 2기 스물네 명. 팀프로젝트 12팀. 파생되는 기관컨설팅 5개 기관. 끝나는 시점 — 10월 말입니다.',
+'먼저 구조부터 정확히 잡고 가겠습니다. 이 과정의 본 트랙은 개인에서 팀입니다. 기관컨설팅은 — 거기서 갈라져 나오는 파생 트랙입니다.',
+'출발은 개인프로젝트, 4주. 8월 6일부터 9월 4일까지 — 주 1회. 앞의 2주는 자유주제, 뒤의 2주는 소속 기관 주제입니다.',
+'4주가 끝나면 평가와 선발. NIA, 행정안전부, CDSA — 필요하면 외부 위원까지. 전원을 같은 기준으로 순위화해서 5개 기관을 뽑습니다. 여기가 분기점입니다.',
+'하지만 본선은 계속 갑니다. 팀프로젝트 4주 — 9월 17일부터 10월 23일까지. 그리고 저 흰 박스, 10월 말 — 과정 완성. 전원이 걷는 길입니다.',
+'그리고 점선으로 내려가는 저 박스 — 기관컨설팅. 선정된 다섯 명만 추가로 여는 독립 프로젝트입니다. 본선 따로, 파생 따로.',
+'이 판에 서는 사람들입니다. 전문인재 48명 — 1기와 2기. 4인 1조 12개 팀. 그리고 CDSA 컨설턴트 5명 — 이중균, 현중균, 신성진, 김용재, 김태유. 전 구간을 같이 갑니다.',
+'한 가지만 미리 말씀드립니다. 48명은 정원 기준입니다. 중간에 이탈이 생기면 — 이후 단계 인원과 팀 편성은 조정됩니다. 끝까지 가는 것 자체가 조건입니다.',
+'첫 번째 관문, 개인프로젝트. 2주짜리 블록 두 개 — 자유주제, 기관주제. 원칙 하나 — 같은 기관이어도 1인당 1주제. 얹혀 가는 건 없습니다.',
+'일정 보시죠. 목요일이 1기, 금요일이 2기입니다.',
+'1주차 — 8월 6일과 7일. 자유주제를 정하고 만들기 시작합니다. CDSA가 옆에서 코칭합니다.',
+'2주차 — 8월 13일과 14일. 오전 완성, 오후 발표·평가. 그리고 과제 — 소속 기관의 페인포인트를 찾아오세요. 정의하고, 인터뷰하고, 근거를 확보합니다.',
+'3주차 — 8월 27일과 28일. 오전에 과제 확정, 바로 개발. 실데이터가 있으면 실데이터로, 없으면 목업으로.',
+'4주차 — 9월 3일과 4일. 오전 마무리, 오후 최종 발표. NIA·행정안전부·CDSA 평가단이 전원을 평가해 상위 5개 기관을 선정합니다.',
+'주제요? 뭐든 됩니다. 폐쇄망 프로그램, 클라우드 정보서비스, 크롬 확장프로그램, 웹앱, 앱, 논문까지. 막히면 주말 줌 개별코칭을 잡으세요. 혼자 붙잡고 계시지 마세요.',
+'지금 화면에 뜨는 점 하나하나가 — 여러분입니다. 1기, 2기 구분 없이 전원. 같은 평가자가, 같은 기준으로 순위를 매깁니다.',
+'그중 다섯. 다섯 개 기관이 기관컨설팅 무대에 오르고 — 선정된 순간부터, 그분은 소속 기관 PoC의 PM이 됩니다.',
+'선정된 다섯 분의 이야기입니다. 다시 강조합니다 — 과정과 별개의 독립 프로젝트입니다. 팀프로젝트와 병행합니다.',
+'기관마다 한 팀. 꼭짓점에 PM — 여러분. 실무진 최소 5명이 요구사항과 데이터를 대고, CDSA 컨설턴트 1명이 PoC 설계·개발을 리드합니다.',
+'참여 기관에는 지원이 있습니다. 활동비와 AI 사용료 — 기관당 최대 300여만원, 실비 정산입니다.',
+'운영은 온라인 회의와 오프라인 워크샵을 섞어 — 10월 말 완료가 목표입니다.',
+'본선의 마지막 — 팀프로젝트. 서로 다른 기관의 네 명이 한 팀. 그래서 해커톤형 자유주제입니다.',
+'1주차 — 9월 17·18일, 주제와 기획 확정. 2주차 — 10월 1·2일, 개발 시작. 팀당 AI 구독료 30만원 지원.',
+'3주차 — 10월 15·16일, HTML 통일 양식 보고서 — 그대로 책으로 발간됩니다. 4주차 — 10월 22·23일, 최종 발표·평가·시상.',
+'쓴소리 하나. 무임승차 — 매 기수 있었습니다. 올해는 안 됩니다. 역할 분담과 기여도 평가를 명확히 반영합니다.',
+'기관컨설팅 선정자 다섯 분은 팀프로젝트와 PM을 병행합니다 — 일정 관리는 저희가 같이 설계합니다.',
+'돈 이야기입니다. 헷갈리기 쉬워서 대놓고 말씀드립니다 — 시상금과 활동지원비는, 별개의 두 예산입니다.',
+'팀프로젝트 시상 — 대상 1팀(1·2기 통합) 100만원. 최우수 1·2기 각 1팀, 각 80만원. 혁신상 1·2기 각 1팀, 각 50만원. 팀당 AI 구독료 30만원은 별도 지원.',
+'기관컨설팅 활동지원비 — 기관당 최대 300여만원 실비. 왼쪽은 성적, 오른쪽은 참여 — 서로 다른 주머니입니다.',
+'정리하겠습니다. 하나 — 혼자 완성합니다. 개인프로젝트 4주, 1인 1주제. 둘 — 팀으로 완성합니다. 팀프로젝트 4주, 시상, 그리고 책.',
+'화면의 문장 그대로 — 이 과정의 마지막은, 팀프로젝트입니다.',
+'기관컨설팅은 잘한 사람에게 열리는 보너스 트랙 — 과정의 완성은 전원이 팀으로 끝까지 가는 것입니다.',
+'첫 세션 — 8월 6일 목요일 1기, 8월 7일 금요일 2기. 그날 뵙겠습니다. 감사합니다.'];
+var COUNTS=[3,5,2,7,2,4,5,3,4], N=9, TOTAL=35;
+var OFFS=[];{var _a=0;for(var i=0;i<N;i++){OFFS.push(_a);_a+=COUNTS[i];}}
+var SEC_VH=2.4, HOLD=.68;
+$('#spacer').style.height=(N*SEC_VH*100)+'vh';
+function secPx(){return innerHeight*SEC_VH;}
+function pOf(g){var i=0;while(i<N-1&&OFFS[i+1]<=g)i++;var j=g-OFFS[i];
+  return (i+HOLD*((j+.62)/COUNTS[i]))/N;}
+function sentAt(p){var f=clamp(p,0,1)*N;var i=Math.min(N-1,Math.floor(f));var local=f-i;
+  var sp=local<=HOLD?local/HOLD:1;if(f>=N-1e-6){i=N-1;sp=1;}
+  var nc=COUNTS[i],ci=Math.min(nc-1,Math.floor(sp*nc));
+  return {ch:i,ci:ci,sp:sp,local:local,frac:clamp(sp*nc-ci,0,1)};}
+
+/* ═══ 렌더러/씬 ═══ */
+var isMobile=/iPhone|iPad|Android/i.test(navigator.userAgent);
+var renderer=new T.WebGLRenderer({canvas:$('#gl'),antialias:true});
+renderer.setPixelRatio(Math.min(isMobile?1.2:1.6,devicePixelRatio||1));
+renderer.setSize(innerWidth,innerHeight);
+renderer.shadowMap.enabled=!isMobile;
+renderer.shadowMap.type=T.PCFSoftShadowMap;
+renderer.outputEncoding=T.sRGBEncoding;
+renderer.toneMapping=T.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.1;
+var scene=new T.Scene();
+scene.background=new T.Color(0x05070d);
+scene.fog=new T.FogExp2(0x05070d,0.014);
+var camera=new T.PerspectiveCamera(62,innerWidth/innerHeight,.1,400);
+addEventListener('resize',function(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);},{passive:true});
+
+scene.add(new T.HemisphereLight(0x4a5f8c,0x0c1018,.52));
+var moon=new T.DirectionalLight(0xcdd9ff,.95);
+moon.position.set(35,55,-25);
+if(!isMobile){moon.castShadow=true;moon.shadow.mapSize.set(2048,2048);
+  Object.assign(moon.shadow.camera,{left:-70,right:70,top:120,bottom:-30,far:200});}
+scene.add(moon);
+var warm=new T.PointLight(0xe8c268,0,60);warm.position.set(0,10,85);scene.add(warm);
+
+var ground=new T.Mesh(new T.PlaneGeometry(500,500),
+  new T.MeshStandardMaterial({color:0x0b101c,roughness:.95}));
+ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+var grid=new T.GridHelper(500,125,0x1b2743,0x121a2e);
+grid.position.y=.02;grid.material.transparent=true;grid.material.opacity=.32;scene.add(grid);
+(function(){var g2=new T.BufferGeometry(),n2=1200,arr=new Float32Array(n2*3);
+  for(var i2=0;i2<n2;i2++){var th=Math.random()*6.283,ph=Math.acos(Math.random()*.85),r=180+Math.random()*120;
+    arr[i2*3]=Math.cos(th)*Math.sin(ph)*r;arr[i2*3+1]=Math.cos(ph)*r+5;arr[i2*3+2]=Math.sin(th)*Math.sin(ph)*r;}
+  g2.setAttribute('position',new T.BufferAttribute(arr,3));
+  scene.add(new T.Points(g2,new T.PointsMaterial({color:0xaec4e8,size:.5,transparent:true,opacity:.8})));})();
+
+/* ═══ 무대 소품 ═══ */
+var fw=function(w,s){return w+" "+s+"px 'Pretendard Variable',Pretendard,'Malgun Gothic',sans-serif";};
+function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();}
+function textSprite(txt,px,color){
+  var cv=document.createElement('canvas');cv.width=1024;cv.height=192;
+  var c=cv.getContext('2d');c.font=fw(800,px||64);c.textAlign='center';c.textBaseline='middle';
+  c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=16;c.fillStyle=color||'#dbe6ff';c.fillText(txt,512,96);
+  var tx=new T.CanvasTexture(cv);tx.anisotropy=8;
+  var sp=new T.Sprite(new T.SpriteMaterial({map:tx,transparent:true,depthWrite:false}));
+  sp.scale.set(14,2.6,1);return sp;
+}
+/* 정보 카드(스프라이트 — 항상 정면) */
+function cardSprite(o){
+  var W=1024,pad=48,LH=58,TH=o.title?86:26;
+  var lines=o.lines||[];
+  var H=TH+lines.length*LH+44;
+  var cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  var c=cv.getContext('2d');
+  c.fillStyle='rgba(8,10,17,.92)';rr(c,4,4,W-8,H-8,24);c.fill();
+  c.strokeStyle=o.accent||'#e8c268';c.globalAlpha=.65;c.lineWidth=3;rr(c,4,4,W-8,H-8,24);c.stroke();c.globalAlpha=1;
+  c.fillStyle=o.accent||'#e8c268';rr(c,4,30,6,TH-38,3);c.fill();
+  var y=0;
+  if(o.title){c.font=fw(800,46);c.fillStyle=o.accent||'#e8c268';c.fillText(o.title,pad,60);y=TH;}else y=26;
+  lines.forEach(function(ln,i2){
+    var hot=ln.charAt(0)==='!';
+    c.font=fw(hot?800:600,37);
+    c.fillStyle=hot?'#f4e3b0':'#e8edf7';
+    c.fillText(hot?ln.slice(1):ln,pad,y+46+i2*LH);
+  });
+  if(o.whiteBox){
+    var bw=270,bh=96,bx=W-bw-40,by=H-bh-34;
+    c.fillStyle='#f4f6fa';rr(c,bx,by,bw,bh,16);c.fill();
+    c.fillStyle='#10151f';c.font=fw(800,38);c.fillText('10월 말',bx+26,by+42);
+    c.font=fw(600,26);c.fillStyle='#3a4356';c.fillText('과정 완성',bx+26,by+76);
+  }
+  if(o.dots){c.fillStyle='#e8c268';
+    for(var d=0;d<5;d++){c.beginPath();c.arc(W-58,30+d*20,5,0,6.283);c.fill();}}
+  var tx=new T.CanvasTexture(cv);tx.anisotropy=8;
+  var w=o.w||11;
+  var sp=new T.Sprite(new T.SpriteMaterial({map:tx,transparent:true,depthWrite:false,opacity:0}));
+  sp.scale.set(w,w*H/W,1);
+  return sp;
+}
+
+/* 평가 관문 */
+var GATE_Z=45;
+var gateGrp=new T.Group();scene.add(gateGrp);
+(function(){
+  var pm=new T.MeshStandardMaterial({color:0x18233d,roughness:.45,metalness:.55,
+    emissive:0x2c477e,emissiveIntensity:.22,transparent:true});
+  [-6.5,6.5].forEach(function(px){
+    var p2=new T.Mesh(new T.BoxGeometry(1.1,9,1.1),pm);
+    p2.position.set(px,4.5,GATE_Z);p2.castShadow=true;gateGrp.add(p2);});
+  var beam=new T.Mesh(new T.BoxGeometry(14.2,.9,1.1),pm);
+  beam.position.set(0,9.2,GATE_Z);beam.castShadow=true;gateGrp.add(beam);
+  var banner=textSprite('NIA · 행정안전부 · CDSA  공동 평가',52);
+  banner.position.set(0,11,GATE_Z);banner.scale.set(18,3.4,1);gateGrp.add(banner);
+  gateGrp.userData={pm:pm,banner:banner};
+})();
+var scanner=new T.Mesh(new T.BoxGeometry(.18,7.5,.1),
+  new T.MeshBasicMaterial({color:0xe8c268,transparent:true}));
+scanner.position.set(0,3.9,GATE_Z);scene.add(scanner);
+
+/* 기관 건물 */
+var BX=[-36,-18,0,18,36],BZ=85,BH=[13,17,11,16,12],builds=[];
+BX.forEach(function(bx,j){
+  var cv=document.createElement('canvas');cv.width=128;cv.height=256;
+  var c=cv.getContext('2d');c.fillStyle='#000';c.fillRect(0,0,128,256);
+  for(var r2=0;r2<10;r2++)for(var q=0;q<5;q++)
+    if(Math.random()<.72){c.fillStyle='#ffca5f';c.fillRect(12+q*22,14+r2*23,12,14);}
+  var mat=new T.MeshStandardMaterial({color:0x141c2c,roughness:.8,
+    emissiveMap:new T.CanvasTexture(cv),emissive:0xffca5f,emissiveIntensity:.04});
+  var b2=new T.Mesh(new T.BoxGeometry(8.5,BH[j],7),mat);
+  b2.position.set(bx,BH[j]/2,BZ);b2.castShadow=true;b2.receiveShadow=true;scene.add(b2);
+  builds.push(mat);
+});
+var labOrg=textSprite('선정 5개 기관 — 기관컨설팅',56,'#e8c268');
+labOrg.position.set(0,BH[1]+2,BZ);labOrg.scale.set(13,2.4,1);labOrg.material.opacity=0;scene.add(labOrg);
+
+/* 여정선 + 팀 테이블 */
+var pathDots=[];
+for(var z2=-8;z2<=42;z2+=2.6){
+  var d2=new T.Mesh(new T.SphereGeometry(.1,8,6),
+    new T.MeshBasicMaterial({color:0x8ba3cd,transparent:true,opacity:.5}));
+  d2.position.set(0,.12,z2);scene.add(d2);pathDots.push(d2);
+}
+var teamDiscs=[];
+for(var k2=0;k2<9;k2++){
+  var disc=new T.Mesh(new T.CylinderGeometry(.75,.85,.55,14),
+    new T.MeshStandardMaterial({color:0x1a2742,roughness:.5,metalness:.3,
+      emissive:0xe8c268,emissiveIntensity:.28,transparent:true,opacity:0}));
+  disc.position.set((k2%5-2)*9.5,.28,64+((k2/5)|0)*7);
+  disc.castShadow=true;scene.add(disc);teamDiscs.push(disc);
+}
+/* 시상 포디움 (28,55) */
+var POD={x:28,z:55};
+var podium=new T.Group();scene.add(podium);
+var podBars=[];
+[[0,1.6,0xd9a441,'대상 100만'],[-2.9,1.15,0xc8cfdd,'최우수 ×2 각 80만'],[2.9,.85,0xcd9a5f,'혁신 ×2 각 50만']].forEach(function(pd){
+  var bar=new T.Mesh(new T.BoxGeometry(2.5,1,2.2),
+    new T.MeshStandardMaterial({color:pd[2],roughness:.5,metalness:.4,transparent:true,opacity:0}));
+  bar.position.set(POD.x+pd[0],.01,POD.z);bar.castShadow=true;
+  bar.userData={h:pd[1]};podium.add(bar);podBars.push(bar);
+  var lb=textSprite(pd[3],44,'#f4e3b0');lb.scale.set(7.5,1.4,1);
+  lb.position.set(POD.x+pd[0],pd[1]+(pd[0]===0?3.6:2.2),POD.z);lb.material.opacity=0;
+  bar.userData.lb=lb;podium.add(lb);
+});
+/* 결과물 빛 + 컨설팅 구슬 */
+var TRN=38,CON=5,ALLN=43;
+var SELECTED=[3,9,17,24,31];var isSel=function(i){return SELECTED.indexOf(i)>-1;};
+var W3=[3,9,17]; /* 포디움 위 수상자 */
+var sparks=[];
+for(var i3=0;i3<TRN;i3++){
+  var sp3=new T.Mesh(new T.SphereGeometry(.13,10,8),
+    new T.MeshBasicMaterial({color:0xffe9b0,transparent:true,opacity:0}));
+  scene.add(sp3);sparks.push(sp3);
+}
+var orbs=[];
+for(var j3=0;j3<5;j3++)for(var q3=0;q3<3;q3++){
+  var o3=new T.Mesh(new T.SphereGeometry(.16,10,8),
+    new T.MeshBasicMaterial({color:0xe8c268,transparent:true,opacity:0}));
+  scene.add(o3);orbs.push({o:o3,j:j3,q:q3});
+}
+var lab1=textSprite('1기');lab1.position.set(-9,4.4,6);scene.add(lab1);
+var lab2=textSprite('2기');lab2.position.set(9,4.4,6);scene.add(lab2);
+var labTeam=textSprite('팀프로젝트 — 4인 1조',52);labTeam.position.set(0,4.6,66);labTeam.material.opacity=0;scene.add(labTeam);
+
+/* ═══ 인물 대형 ═══ */
+function F0(i){if(i>=TRN){var c=i-TRN;return[(c-2)*4,-5.5];}
+  var g=i<19?0:1,a=i%19,col=a%5,row=(a/5)|0;
+  return[(g?9:-9)+(col-2)*2.3,4+row*2.5];}
+function F1(i){if(i>=TRN){var c=i-TRN;return[c<3?-20:20,14+(c%3)*7];}
+  var col=i%8,row=(i/8)|0;return[(col-3.5)*4.5,12+row*4.8];}
+function F2(i){if(i>=TRN){var c=i-TRN;return[(c-2)*4.6,26];}
+  var col=i%6,row=(i/6)|0,w=16-row*1.1;return[(col/5-.5)*w,30+row*2.4];}
+function F3(i){if(i>=TRN){var c=i-TRN;return[BX[c]+2.6,80];}
+  if(isSel(i)){var j=SELECTED.indexOf(i);return[BX[j],81];}
+  var k=0,m=0,cnt=0;
+  for(var q=0;q<TRN;q++){if(isSel(q))continue;if(q===i){k=(cnt/4)|0;m=cnt%4;break;}cnt++;}
+  var tx=(k%5-2)*9.5,tz=64+((k/5)|0)*7,a2=m*Math.PI/2+k*.7;
+  return[tx+Math.cos(a2)*1.8,tz+Math.sin(a2)*1.8];}
+function F4(i){ /* 시상식: 포디움+관중 */
+  if(i>=TRN){var c=i-TRN;return[POD.x-9+(c*1.1-2),POD.z-2+(c%2)];}
+  var wi=W3.indexOf(i);
+  if(wi>-1)return[POD.x+[0,-2.9,2.9][wi],POD.z];
+  var m2=0,cnt2=0;
+  for(var q2=0;q2<TRN;q2++){if(W3.indexOf(q2)>-1)continue;if(q2===i){m2=cnt2;break;}cnt2++;}
+  return[POD.x+((m2%9)-4)*2.2,POD.z-6-((m2/9)|0)*2.3];}
+var FORMS=[F0,F1,F2,F3,F4];
+var CHF=[0,0,0,1,2,3,3,4,4];
+var stag=[];for(var i4=0;i4<ALLN;i4++)stag.push(((i4*2654435761)%997)/997);
+function personPos(i,t){
+  var s=clamp(Math.floor(t),0,N-1),u=clamp(t-s,0,1);
+  var A=FORMS[CHF[s]](i),B=FORMS[CHF[Math.min(s+1,N-1)]](i);
+  var m=smooth(clamp(((u-.68)/.32)*1.45-stag[i]*.45,0,1));
+  if(s===4&&isSel(i))m=Math.max(m,smooth(clamp((u-.52)/.4,0,1)));
+  return {x:lerp(A[0],B[0],m),z:lerp(A[1],B[1],m),moving:m>0&&m<1,dx:B[0]-A[0],dz:B[1]-A[1]};
+}
+
+/* ═══ 인물(리깅 캐릭터) ═══ */
+var COL_A=0xffffff,COL_B=0xc9d4e8,COL_GOLD=0xd9a441;
+var GOLDC=new T.Color(COL_GOLD);
+var people=[];
+function buildCapsuleCrowd(){
+  for(var i5=0;i5<ALLN;i5++){
+    var gold=i5>=TRN;
+    var color=gold?COL_GOLD:(i5<19?COL_A:COL_B);
+    var mat=new T.MeshStandardMaterial({color:color,roughness:.65,metalness:.08,
+      emissive:gold?0x6b4c12:0x000000,emissiveIntensity:gold?.45:0});
+    var skin=new T.MeshStandardMaterial({color:0xd9c0a8,roughness:.7});
+    var grp=new T.Group();
+    function mk(geo,m2,x,y,z){var o=new T.Mesh(geo,m2);o.position.set(x,y,z);o.castShadow=true;grp.add(o);return o;}
+    var legG=new T.CapsuleGeometry(.09,.5,3,8);legG.translate(0,-.3,0);
+    var legL=mk(legG,mat,-.12,.78,0),legR=mk(legG.clone(),mat,.12,.78,0);
+    mk(new T.CapsuleGeometry(.21,.5,4,10),mat,0,1.08,0);
+    var armG=new T.CapsuleGeometry(.06,.44,3,8);armG.translate(0,-.28,0);
+    var armL=mk(armG,mat,-.30,1.36,0),armR=mk(armG.clone(),mat,.30,1.36,0);
+    mk(new T.SphereGeometry(.16,14,12),skin,0,1.62,0);
+    grp.scale.setScalar(gold?1.12:1);
+    scene.add(grp);
+    people[i5]={kind:'capsule',grp:grp,yaw:Math.PI,off:0,mat:mat,legL:legL,legR:legR,armL:armL,armR:armR};
+  }
+}
+(function loadHumans(){
+  try{
+    if(typeof SOLDIER_B64==='undefined'||!T.GLTFLoader)throw new Error('no glb');
+    var bin=atob(SOLDIER_B64);
+    var buf=new ArrayBuffer(bin.length),u8=new Uint8Array(buf);
+    for(var i6=0;i6<bin.length;i6++)u8[i6]=bin.charCodeAt(i6);
+    new T.GLTFLoader().parse(buf,'',function(g){
+      var clips=g.animations;
+      var idleC=T.AnimationClip.findByName(clips,'Idle')||clips[0];
+      var walkC=T.AnimationClip.findByName(clips,'Walk')||clips[1]||clips[0];
+      for(var i7=0;i7<ALLN;i7++){
+        var gold=i7>=TRN;
+        var grp=T.SkeletonUtils.clone(g.scene);
+        var tint=new T.Color(gold?COL_GOLD:(i7<19?COL_A:COL_B));
+        var mats=[];
+        grp.traverse(function(nn){if(nn.isMesh){
+          nn.castShadow=true;nn.frustumCulled=false;
+          nn.material=nn.material.clone();
+          nn.material.color.multiply(tint);
+          if(gold){nn.material.emissive=new T.Color(0x5c400e);nn.material.emissiveIntensity=.5;}
+          mats.push(nn.material);
+        }});
+        grp.scale.setScalar((gold?1.03:.95)+((i7*53)%7)*.012);
+        var mixer=new T.AnimationMixer(grp);
+        var idle=mixer.clipAction(idleC),walk=mixer.clipAction(walkC);
+        idle.play();walk.play();walk.weight=0;
+        mixer.update(((i7*37)%20)*.1);
+        scene.add(grp);
+        people[i7]={kind:'glb',grp:grp,yaw:Math.PI,off:Math.PI,mixer:mixer,idle:idle,walk:walk,wW:0,mats:mats,
+                    base:mats.map(function(m3){return m3.color.clone();})};
+      }
+    },function(err){console.warn('glb fail',err);buildCapsuleCrowd();});
+  }catch(e){console.warn(e);buildCapsuleCrowd();}
+})();
+
+/* ═══ 문장별 카메라 (다양한 무빙: 오빗·POV·크레인·트래킹) ═══ */
+var CAMS=[
+ {e:[0,2.2,-13],l:[0,1.6,6],orb:0},
+ {e:[-11,2,-6],l:[0,1.5,8],orb:34},
+ {e:[0,5.5,-8],l:[0,2.5,6],orb:0},
+ {e:[0,2.6,12],l:[0,2.4,22],orb:0},
+ {e:[3,2.2,20],l:[0,3,27],orb:18},
+ {e:[-3,2.2,28],l:[0,3,35],orb:18},
+ {e:[3,2.4,42],l:[0,3.4,50],orb:0},
+ {e:[6,2.2,42],l:[10,2.6,48],orb:22},
+ {e:[-11,1.8,1],l:[0,2.4,9],orb:26},
+ {e:[0,3.4,-2],l:[0,3.0,10],orb:0},
+ {e:[0,7,6],l:[0,1.5,20],orb:0},
+ {e:[0,2.4,13],l:[0,3,20],orb:0},
+ {e:[-9,2,14],l:[-6,2,20],orb:20},
+ {e:[9,2,16],l:[4,2,22],orb:-20},
+ {e:[-9,2,20],l:[-2,2,25],orb:20},
+ {e:[9,2.4,22],l:[2,2.2,27],orb:-20},
+ {e:[0,9,10],l:[0,2,22],orb:0},
+ {e:[0,2.0,24],l:[0,3,40],orb:0},
+ {e:[0,2.4,50],l:[0,2,38],orb:26},
+ {e:[0,4,66],l:[0,4,82],orb:0},
+ {e:[8,2,74],l:[0,2,81],orb:30},
+ {e:[8,3,76],l:[13,4,83],orb:0},
+ {e:[-8,3,76],l:[-9,4,83],orb:14},
+ {e:[0,8,52],l:[0,2,66],orb:0},
+ {e:[-12,2,60],l:[-6,1.6,66],orb:18},
+ {e:[12,2,64],l:[6,1.6,69],orb:-18},
+ {e:[0,2.2,61],l:[0,2.4,68],orb:0},
+ {e:[0,4,63],l:[0,3,70],orb:0},
+ {e:[28,3,46],l:[28,2.8,53],orb:0},
+ {e:[17,3,44],l:[28,2,55],orb:36},
+ {e:[33,2.6,47],l:[30,2.4,53],orb:-16},
+ {e:[0,10,24],l:[0,2,45],orb:0},
+ {e:[0,4,32],l:[0,4.5,40],orb:10},
+ {e:[0,6,28],l:[0,3,42],orb:0},
+ {e:[0,26,10],l:[0,2,55],orb:0}];
+
+/* ═══ 문장별 정보 카드 ═══ */
+var CARDS={
+ 0:{p:[0,6.2,2],title:'AI 챔피언 고급과정',lines:['OPERATION PLAN 2026'],w:11},
+ 1:{p:[0,5.6,2],title:'개인으로 증명하고,',lines:['!팀으로 완성한다'],w:11},
+ 2:{p:[0,5.8,2],title:'핵심 숫자 넷',lines:['!48명 · 12팀 · 5개 기관 · 10월 말'],w:12},
+ 3:{p:[0,6,20],title:'본 트랙: 개인 → 팀',lines:['기관컨설팅은 파생 트랙'],w:11},
+ 4:{p:[0,5.6,26],title:'① 개인프로젝트',lines:['08/06~09/04 · 주1회','자유 2주 + 기관 2주'],w:11},
+ 5:{p:[0,5.6,34],title:'② 평가·선발',lines:['NIA·행안부·CDSA (+외부)','!동일 기준 → 5개 기관'],w:11},
+ 6:{p:[0,5.8,50],title:'③ 팀프로젝트 → 완성',lines:['09/17~10/23 · 시상·책'],w:12,whiteBox:true},
+ 7:{p:[10,4.8,48],title:'↘ 기관컨설팅',lines:['파생·독립 · PM=전문인재'],w:10,dots:true},
+ 8:{p:[0,5.2,14],title:'48명 · 12팀 · CDSA 5인',lines:['이중균·현중균·신성진·김용재·김태유'],w:12},
+ 9:{p:[0,5.4,15],title:'48명은 정원 기준',lines:['!이탈 시 인원·팀 편성 조정'],w:11,accent:'#d98a97'},
+ 10:{p:[0,6.2,17],title:'PHASE 01 — 개인프로젝트',lines:['!원칙: 1인당 1주제'],w:11},
+ 11:{p:[0,5.4,19],title:'목요일 = 1기 · 금요일 = 2기',lines:[],w:11},
+ 12:{p:[-6,5,20],title:'1주차 08/06·07',lines:['자유주제 착수 · CDSA 코칭'],w:10},
+ 13:{p:[4,5,22],title:'2주차 08/13·14',lines:['완성·발표·평가','!기관 페인포인트 과제'],w:10},
+ 14:{p:[-2,5,25],title:'3주차 08/27·28',lines:['과제 확정 → PoC 개발'],w:10},
+ 15:{p:[2,5,27],title:'4주차 09/03·04',lines:['최종 발표 · !5개 기관 선정'],w:10},
+ 16:{p:[0,6.4,22],title:'주제는 자유',lines:['폐쇄망·클라우드·웹앱·앱·논문','!주말 줌 개별코칭'],w:12},
+ 17:{p:[0,6.8,38],title:'SELECTION',lines:['!동일 평가자 · 동일 기준 순위화'],w:11},
+ 18:{p:[0,6.8,42],title:'상위 5개 기관',lines:['!선정 = 소속 기관 PoC의 PM'],w:11},
+ 19:{p:[0,8.4,78],title:'PHASE 02 — 기관컨설팅',lines:['!독립 프로젝트 · 팀PJ와 병행'],w:12},
+ 20:{p:[0,7.4,80],title:'기관당 한 팀',lines:['PM + 실무진 5+ + CDSA 1'],w:11},
+ 21:{p:[11,6.4,80],title:'참여 기관 지원',lines:['!최대 300여만원 · 실비'],w:10},
+ 22:{p:[-11,6.4,80],title:'운영 방식',lines:['온라인+워크샵 · 10월 말 완료'],w:10},
+ 23:{p:[0,7.2,60],title:'PHASE 03 — 팀프로젝트',lines:['4인 1팀 · !해커톤형 자유주제'],w:12},
+ 24:{p:[-7,5,63],title:'1·2주차',lines:['09/17·18 기획 확정','10/01·02 개발 · !AI 30만'],w:10},
+ 25:{p:[7,5,67],title:'3·4주차',lines:['HTML 보고서 → !책 발간','10/22·23 발표·시상'],w:10},
+ 26:{p:[0,6,68],title:'무임승차 — 올해는 안 됩니다',lines:['!역할 분담·기여도 평가 반영'],w:12,accent:'#d96a78'},
+ 27:{p:[0,5.2,70],title:'병행 안내',lines:['선정 5인: 팀PJ + PM · 일정 함께 설계'],w:11},
+ 28:{p:[28,7,52],title:'별개의 두 예산',lines:['!시상금 ↔ 활동지원비'],w:11},
+ 30:{p:[36,5.6,52],title:'활동지원비',lines:['!기관당 최대 300여만원 실비'],w:10,accent:'#a8cdb8'},
+ 31:{p:[0,7.4,40],title:'정리 — 두 개의 완성',lines:['개인 4주 · 1인 1주제','팀 4주 · 시상 · 책'],w:11},
+ 32:{p:[0,6.4,40],title:'이 과정의 마지막은',lines:['!팀프로젝트입니다'],w:11},
+ 33:{p:[0,5.6,40],title:'기관컨설팅 = 보너스 트랙',lines:['완성 = 전원이 팀으로 끝까지'],w:11},
+ 34:{p:[0,8,40],title:'첫 세션',lines:['08/06(목) 1기 · 08/07(금) 2기','!감사합니다'],w:11}};
+var cardObjs={};
+Object.keys(CARDS).forEach(function(k){
+  var sp=cardSprite(CARDS[k]);
+  sp.position.set(CARDS[k].p[0],CARDS[k].p[1],CARDS[k].p[2]);
+  scene.add(sp);cardObjs[k]=sp;
+});
+
+/* ═══ 스크럽/루프 ═══ */
+var scrollY_=0;addEventListener('scroll',function(){scrollY_=scrollY;},{passive:true});
+var mouse={x:0,y:0,sx:0,sy:0};
+addEventListener('pointermove',function(e){mouse.x=e.clientX/innerWidth-.5;mouse.y=e.clientY/innerHeight-.5;},{passive:true});
+var cur=0,curPrev=-1,shakeT=0,time=0,pS=0,lastCh=-1,lastCap=-1;
+var camPos=new T.Vector3(0,2.2,-13),camLook=new T.Vector3(0,1.6,6);
+var dotsNav=$('#dots');
+for(var d3=0;d3<N;d3++){(function(i8){
+  var el=document.createElement('i');
+  el.addEventListener('click',function(){scrollTo({top:i8*secPx()+10,behavior:'smooth'});});
+  dotsNav.appendChild(el);})(d3);}
+var dotEls=[].slice.call(dotsNav.children);
+var capEl=$('#caption .ctx'),capNo=$('#caption .cno');
+var _v1=new T.Vector3();
+
+function loop(){
+  requestAnimationFrame(loop);
+  time+=1/60;
+  var max=document.documentElement.scrollHeight-innerHeight;
+  var p=max>0?clamp(scrollY_/max,0,1):0;
+  pS+=(p-pS)*(REDUCE?1:.075);
+  var sa=sentAt(pS);
+  cur=OFFS[sa.ch]+sa.ci;
+  var t=pS*N;
+
+  /* 카메라: 문장 앵커 + 문장 내 오빗 */
+  var A=CAMS[cur];
+  var lk=new T.Vector3(A.l[0],A.l[1],A.l[2]);
+  var ey=new T.Vector3(A.e[0],A.e[1],A.e[2]);
+  if(A.orb&&!REDUCE){
+    var ang=(sa.frac-.5)*A.orb*Math.PI/180;
+    var off=ey.clone().sub(lk);
+    off.applyAxisAngle(new T.Vector3(0,1,0),ang);
+    ey=lk.clone().add(off);
+  }
+  camPos.lerp(ey,REDUCE?1:.055);
+  camLook.lerp(lk,REDUCE?1:.075);
+  mouse.sx=lerp(mouse.sx,mouse.x,.06);mouse.sy=lerp(mouse.sy,mouse.y,.06);
+  camera.position.copy(camPos);
+  if(shakeT>.01){camera.position.x+=(Math.random()-.5)*shakeT*.5;camera.position.y+=(Math.random()-.5)*shakeT*.4;}
+  camera.lookAt(camLook.x+mouse.sx*1.6,camLook.y-mouse.sy*1.1,camLook.z);
+
+  /* 타임라인 팩터 (t = p*9) */
+  var sparkF=smooth(clamp((t-3.15)/.4,0,1))*(1-smooth(clamp((t-4.05)/.3,0,1)));
+  var gateGlow=smooth(clamp((t-4.0)/.35,0,1))*(1-smooth(clamp((t-5.0)/.4,0,1)));
+  var lit=smooth(clamp((t-4.5)/.35,0,1));
+  var selGlow=smooth(clamp((t-4.55)/.4,0,1));
+  var beam=smooth(clamp((t-5.3)/.3,0,1));
+  var teamsVis=smooth(clamp((t-5.1)/.3,0,1));
+  var podF=smooth(clamp((t-7.03)/.3,0,1));
+
+  /* 무임승차 슬램 */
+  if(cur===26&&curPrev!==26&&!REDUCE)shakeT=1;
+  curPrev=cur;shakeT*=.93;
+  $('#flash').style.opacity=(shakeT*.45).toFixed(3);
+
+  /* 인물 */
+  for(var i9=0;i9<ALLN;i9++){
+    var P2=people[i9];if(!P2)continue;
+    var pp=personPos(i9,t);
+    P2.grp.position.set(pp.x,0,pp.z);
+    /* 시상식: 수상자 3인 포디움 위 */
+    if(t>=7&&W3.indexOf(i9)>-1&&!pp.moving){
+      var wi2=W3.indexOf(i9);
+      P2.grp.position.y=podBars[wi2].userData.h*podF;
+    }
+    var ty;
+    if(pp.moving&&(pp.dx||pp.dz))ty=Math.atan2(pp.dx,pp.dz);
+    else ty=Math.atan2(camera.position.x-pp.x,camera.position.z-pp.z);
+    var dd=ty-P2.yaw;dd=Math.atan2(Math.sin(dd),Math.cos(dd));
+    P2.yaw+=dd*.12;P2.grp.rotation.y=P2.yaw+P2.off;
+    var w=pp.moving?1:0;
+    if(P2.kind==='glb'){
+      P2.wW+=(w-P2.wW)*.1;
+      P2.walk.weight=P2.wW;P2.idle.weight=1-P2.wW;
+      P2.mixer.update(1/60);
+      if(i9<TRN&&isSel(i9)&&selGlow>0)
+        P2.mats.forEach(function(m4,q4){m4.color.lerpColors(P2.base[q4],GOLDC,selGlow*.75);
+          if(!m4.emissive.getHex())m4.emissive=new T.Color(0x5c400e);
+          m4.emissiveIntensity=.4*selGlow;});
+    }else{
+      var ph=time*8.5+i9*1.7;
+      P2.legL.rotation.x=Math.sin(ph)*.65*w;
+      P2.legR.rotation.x=-Math.sin(ph)*.65*w;
+      P2.armL.rotation.x=-Math.sin(ph)*.5*w;
+      P2.armR.rotation.x=Math.sin(ph)*.5*w;
+      if(!(t>=7&&W3.indexOf(i9)>-1))P2.grp.position.y=w?Math.abs(Math.sin(ph))*.07:0;
+      if(i9<TRN&&isSel(i9)&&selGlow>0){
+        P2.mat.color.lerpColors(new T.Color(i9<19?COL_A:COL_B),GOLDC,selGlow);
+        P2.mat.emissive.setHex(0x6b4c12);P2.mat.emissiveIntensity=.4*selGlow;
+      }
+    }
+  }
+
+  /* 소품 애니 */
+  var gv=smooth(clamp((t-3.85)/.3,0,1));
+  gateGrp.visible=gv>.02;
+  gateGrp.userData.pm.opacity=gv;
+  gateGrp.userData.pm.emissiveIntensity=.22+gateGlow*.8;
+  gateGrp.userData.banner.material.opacity=gv*(.3+.7*gateGlow);
+  scanner.visible=gateGlow>.02;
+  scanner.material.opacity=gateGlow*.8;
+  scanner.position.x=Math.sin(time*2.4)*5.4;
+  builds.forEach(function(mm,j5){mm.emissiveIntensity=.04+lit*1.3;});
+  warm.intensity=lit*1.6;
+  labOrg.material.opacity=lit*.9;
+  var passZ=-8+pS*95;
+  pathDots.forEach(function(d4){
+    var passed=d4.position.z<passZ;
+    d4.material.color.setHex(passed?0xe8c268:0x8ba3cd);
+    d4.material.opacity=(passed?.9:.4)*clamp((d4.position.distanceTo(camera.position)-3)/4,0,1);
+  });
+  teamDiscs.forEach(function(d5){d5.material.opacity=teamsVis;});
+  labTeam.material.opacity=teamsVis*(t>5.5&&t<7?.9:0);
+  podBars.forEach(function(bar){
+    bar.scale.y=Math.max(.001,bar.userData.h*podF);
+    bar.position.y=bar.scale.y/2;
+    bar.material.opacity=podF;
+    bar.userData.lb.material.opacity=podF;
+  });
+  var l0=1-smooth(clamp((t-.85)/.25,0,1));
+  lab1.material.opacity=l0;lab2.material.opacity=l0;
+  for(var i10=0;i10<TRN;i10++){
+    var pp2=personPos(i10,t);
+    var sk=sparks[i10];
+    sk.position.set(pp2.x,2.1+sparkF*1.1+Math.sin(time*2+i10*1.3)*.25,pp2.z);
+    sk.material.opacity=sparkF*.95;
+  }
+  orbs.forEach(function(ob){
+    var kf=(time*.35+ob.q/3)%1;
+    ob.o.position.set(lerp(BX[ob.j]+2.6,BX[ob.j],kf),lerp(1.5,BH[ob.j]*.6,kf),lerp(80,BZ-3.4,kf));
+    ob.o.material.opacity=beam*(1-Math.abs(kf-.5)*1.2)*.95;
+  });
+
+  /* 카드: 현재 문장만 표시 */
+  Object.keys(cardObjs).forEach(function(k3){
+    var sp4=cardObjs[k3];
+    var on=(+k3)===cur;
+    sp4.material.opacity=lerp(sp4.material.opacity,on?1:0,.12);
+    if(on&&!REDUCE)sp4.position.y=CARDS[k3].p[1]+Math.sin(time*1.4)*.06;
+  });
+
+  /* HUD */
+  $('#progress').style.width=(pS*100).toFixed(2)+'%';
+  if(sa.ch!==lastCh){lastCh=sa.ch;
+    $('#hud .hk').textContent=CHM[sa.ch].k;
+    $('#hud .ht').textContent=CHM[sa.ch].t;
+    dotEls.forEach(function(el,i11){el.className=i11===sa.ch?'on':'';});}
+  if(cur!==lastCap){lastCap=cur;
+    capEl.classList.add('fade');
+    (function(cc){setTimeout(function(){
+      capEl.textContent=CAPS[cc];capNo.textContent=cc+1;capEl.classList.remove('fade');},180);})(cur);}
+
+  renderer.render(scene,camera);
+}
+
+/* ═══ 나레이션 플레이어 (WebAudio · 스크럽 추적) ═══ */
+/*AUDIO_EMBED_START*/var AUDIO_DATA={};/*AUDIO_EMBED_END*/
+var engaged=false,wT=0;
+var ACtx=null,BUFS={},BUFQ={};
+function ensureCtx(){
+  if(!ACtx){var AC=window.AudioContext||window.webkitAudioContext;if(AC)ACtx=new AC();}
+  if(ACtx&&ACtx.state==='suspended')ACtx.resume();
+}
+function rawBuf(i){
+  var src=AUDIO_DATA[String(i)];
+  if(src){var b64=src.split(',')[1],bin=atob(b64),u8=new Uint8Array(bin.length);
+    for(var k4=0;k4<bin.length;k4++)u8[k4]=bin.charCodeAt(k4);
+    return Promise.resolve(u8.buffer);}
+  return fetch('audio/pt-'+i+'.mp3').then(function(r){return r.arrayBuffer();});
+}
+function loadBuf(i){
+  if(!ACtx||i<0||i>=TOTAL)return Promise.resolve(null);
+  if(BUFS[i])return Promise.resolve(BUFS[i]);
+  if(BUFQ[i])return BUFQ[i];
+  BUFQ[i]=rawBuf(i).then(function(ab){
+    return new Promise(function(res){ACtx.decodeAudioData(ab,function(bf){BUFS[i]=bf;res(bf);},function(){res(null);});});
+  }).catch(function(){return null;});
+  return BUFQ[i];
+}
+var P={on:false,idx:0,gen:0,audio:null,t0:0,dur:0,fromY:0,toY:0,timer:0,raf:0};
+function targetY(g){return pOf(g)*(document.documentElement.scrollHeight-innerHeight);}
+P.line=function(){
+  var self=this,g=++this.gen,i=this.idx;
+  if(i>=TOTAL){this.finish();return;}
+  this.fromY=scrollY;this.toY=targetY(i);
+  this.dur=Math.max(2600,CAPS[i].length*150);this.t0=performance.now();
+  var spoken=false;
+  var done=function(){
+    if(spoken||g!==self.gen)return;
+    var remain=self.t0+self.dur-performance.now();
+    if(remain>150){clearTimeout(self.timer);self.timer=setTimeout(done,remain);return;}
+    spoken=true;setTimeout(function(){if(!P.on||g!==P.gen)return;P.idx++;P.line();},900);
+  };
+  loadBuf(i).then(function(bf){
+    if(g!==self.gen)return;
+    if(bf&&ACtx){
+      var srcN=ACtx.createBufferSource();srcN.buffer=bf;srcN.connect(ACtx.destination);
+      srcN.onended=function(){if(g===self.gen)done();};
+      self.dur=Math.max(1500,bf.duration*1000);self.t0=performance.now();
+      clearTimeout(self.timer);self.timer=setTimeout(done,self.dur+3000);
+      try{srcN.start();}catch(_){}
+      self.audio=srcN;
+    }else{clearTimeout(self.timer);self.timer=setTimeout(done,self.dur);}
+    loadBuf(i+1);loadBuf(i+2);
+  });
+  clearTimeout(this.timer);this.timer=setTimeout(done,this.dur+6000);
+  (function tick(){
+    if(!P.on||g!==P.gen)return;
+    var ad=Math.min(P.dur*.45,3600);
+    var pr=clamp((performance.now()-P.t0)/ad,0,1);
+    var e3=pr<.5?2*pr*pr:1-Math.pow(-2*pr+2,2)/2;
+    scrollTo(0,P.fromY+(P.toY-P.fromY)*e3);
+    P.raf=requestAnimationFrame(tick);})();
+};
+P.start=function(from){engaged=true;ensureCtx();loadBuf(from||0);this.stopAudio();this.on=true;this.idx=from||0;this.gen++;
+  $('#npStart').classList.add('off');$('#npCtl').classList.add('on');
+  $('#npBtn').textContent='⏸ 일시정지';this.line();};
+P.pause=function(){engaged=false;this.on=false;this.gen++;this.stopAudio();
+  cancelAnimationFrame(this.raf);clearTimeout(this.timer);
+  $('#npBtn').textContent='▶ 이어보기';};
+P.resume=function(){var y=scrollY,best=0,bd=1e18;
+  for(var i=0;i<TOTAL;i++){var d6=Math.abs(targetY(i)-y);if(d6<bd){bd=d6;best=i;}}
+  this.start(best);};
+P.stopAudio=function(){if(this.audio){try{this.audio.stop?this.audio.stop():this.audio.pause();}catch(_){}this.audio=null;}};
+P.finish=function(){engaged=false;this.on=false;this.gen++;this.stopAudio();
+  $('#npBtn').textContent='↺ 다시보기';};
+$('#npStart').addEventListener('click',function(){P.start(0);});
+$('#npBtn').addEventListener('click',function(){
+  if(P.on)P.pause();else if(P.idx>=TOTAL)P.start(0);else P.resume();});
+['wheel','touchmove'].forEach(function(ev){
+  addEventListener(ev,function(){
+    if(!engaged)return;
+    if(P.on){P.on=false;P.gen++;P.stopAudio();cancelAnimationFrame(P.raf);clearTimeout(P.timer);
+      $('#npBtn').textContent='↕ 위치 이동 중…';}
+    clearTimeout(wT);
+    wT=setTimeout(function(){if(engaged&&!P.on){$('#npBtn').textContent='⏸ 일시정지';P.resume();}},650);
+  },{passive:true});});
+addEventListener('keydown',function(e){
+  if(e.code!=='Space')return;e.preventDefault();
+  if(P.on)P.pause();else if($('#npStart').classList.contains('off'))P.resume();else P.start(0);});
+
+/* ═══ 부트 ═══ */
+var booted=false;
+function boot(){
+  if(booted)return;booted=true;
+  setTimeout(function(){$('#loader').classList.add('done');},400);
+  scrollY_=scrollY;loop();
+}
+if(document.fonts&&document.fonts.load){
+  Promise.all(['400','700','800'].map(function(w){
+    return document.fonts.load(w+" 40px 'Pretendard Variable'",'전문인재Aa08월');
+  })).then(boot).catch(boot);
+}else boot();
+setTimeout(boot,3000);
+})();
+</script>
+</body>
+</html>
