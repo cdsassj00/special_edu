@@ -380,6 +380,7 @@ var engaged=false,wT=0;
 var P={on:false,idx:0,gen:0,audio:null,t0:0,dur:0,fromY:0,toY:0,timer:0,raf:0};
 P.est=function(n){return Math.max(2600,n*150);};
 P.line=function(){
+  this.stopAudio();                         /* 새 문장 재생 전 이전 오디오를 확실히 정지(겹침 방지) */
   var self=this,g=++this.gen,i=this.idx;
   if(i>=TOTAL){this.finish();return;}
   this.fromY=scrollY;this.toY=targetY(i);
