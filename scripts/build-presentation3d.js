@@ -349,7 +349,7 @@ h = h.replace(`    p = A[i].p.clone().lerp(A[i + 1].p, t);
 /* ── 존 가시성: 인접 존만 (클로징은 전체 조감) ── */
 {
   const ZV_OLD=["zones.forEach((z, zi) => {","      if (!z) return;","      const nCaps = CH[zi].caps.length;"].join("\n");
-  const ZV_NEW=["zones.forEach((z, zi) => {","      if (!z) return;","      z.visible = (active === N - 1) || Math.abs(zi - active) <= 1;","      const nCaps = CH[zi].caps.length;"].join("\n");
+  const ZV_NEW=["zones.forEach((z, zi) => {","      if (!z) return;","      z.visible = (active === N - 1) ? (zi === N - 1) : (Math.abs(zi - active) <= 1);","      const nCaps = CH[zi].caps.length;"].join("\n");
   if(!h.includes(ZV_OLD)) throw new Error("zone visibility anchor not found");
   h = h.replace(ZV_OLD, ZV_NEW);
 }
